@@ -1,36 +1,28 @@
 import { CartProvider } from "@/context/CartContext";
-import Header from "@/components/Header";
 import HeroBanner from "@/components/HeroBanner";
 import MenuSection from "@/components/MenuSection";
 import LocationSection from "@/components/LocationSection";
-import CheckoutSection from "@/components/CheckoutSection";
 import CartSidebar from "@/components/CartSidebar";
 import Footer from "@/components/Footer";
+import TopNav from "@/components/TopNav";
 
 const Index = () => (
   <CartProvider>
-    <div className="min-h-screen bg-background pt-[72px] selection:bg-primary/30">
-      {/* Hero Section with Integrated Header background */}
-      <div className="bg-charcoal">
-        <Header />
+    <div className="min-h-screen bg-background selection:bg-primary/30">
+      {/* Primary Responsive Navigation at the top */}
+      <TopNav />
+      
+      {/* Hero Section - No padding top as TopNav is fixed and covers first 72px */}
+      <div className="bg-charcoal overflow-hidden">
         <HeroBanner />
       </div>
 
       <main className="relative">
-        {/* Menu Section - Native Grid Layout */}
-        <div className="pb-16">
-          <MenuSection />
-        </div>
-
-        {/* Checkout - Highlighted Section */}
-        <div className="bg-secondary/10 border-y border-border/40">
-          <CheckoutSection />
-        </div>
+        {/* Menu Section - Background set to white for contrast */}
+        <MenuSection />
 
         {/* Location - Informational */}
-        <div className="py-16">
-          <LocationSection />
-        </div>
+        <LocationSection />
       </main>
 
       {/* Persistent UI Elements */}

@@ -6,35 +6,26 @@
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 240 10% 10%;
-
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 10%;
-
+    --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 10%;
-
-    --primary: 18 100% 60%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 240 6% 93%;
-    --secondary-foreground: 240 10% 10%;
-
-    --muted: 240 6% 96%;
-    --muted-foreground: 240 4% 46%;
-
-    --accent: 18 100% 96%;
-    --accent-foreground: 18 100% 40%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
-    --ring: 18 100% 60%;
-
-    --radius: 0.75rem;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 25 100% 50%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 25 100% 50%;
+    --radius: 1rem;
 
     --charcoal: 240 15% 13%;
     --charcoal-foreground: 0 0% 98%;
@@ -52,6 +43,11 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  * {
+    @apply border-border;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .dark {
@@ -81,8 +77,10 @@
 
 @layer base {
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply bg-background text-foreground antialiased selection:bg-primary/20;
     font-family: 'Plus Jakarta Sans', sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 

@@ -1,8 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
-import { Clock, MapPin, Phone, User, ChevronRight, Loader2 } from 'lucide-react';
+import { 
+  Clock, MapPin, Phone, User, ChevronRight, 
+  Loader2, Package, CheckCircle2, AlertCircle,
+  Timer, IndianRupee, Bike, ShoppingBag
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface Order {
   id: string;
@@ -26,20 +31,12 @@ type OrderStatus = 'new' | 'accepted' | 'preparing' | 'ready' | 'dispatched';
 
 const STATUS_FLOW: OrderStatus[] = ['new', 'accepted', 'preparing', 'ready', 'dispatched'];
 
-const STATUS_COLORS: Record<OrderStatus, string> = {
-  new: 'bg-blue-50 border-blue-200 text-blue-900',
-  accepted: 'bg-purple-50 border-purple-200 text-purple-900',
-  preparing: 'bg-orange-50 border-orange-200 text-orange-900',
-  ready: 'bg-green-50 border-green-200 text-green-900',
-  dispatched: 'bg-gray-50 border-gray-200 text-gray-900',
-};
-
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  new: 'New Order',
-  accepted: 'Accepted',
-  preparing: 'Preparing',
-  ready: 'Ready',
-  dispatched: 'Dispatched',
+const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; bg: string; icon: any }> = {
+  new: { label: 'New Order', color: 'text-blue-600', bg: 'bg-blue-50', icon: AlertCircle },
+  accepted: { label: 'Accepted', color: 'text-purple-600', bg: 'bg-purple-50', icon: CheckCircle2 },
+  preparing: { label: 'Preparing', color: 'text-orange-600', bg: 'bg-orange-50', icon: Timer },
+  ready: { label: 'Ready', color: 'text-emerald-600', bg: 'bg-emerald-50', icon: Package },
+  dispatched: { label: 'Dispatched', color: 'text-slate-600', bg: 'bg-slate-50', icon: Bike },
 };
 
 const LiveOrdersFeed: React.FC = () => {
@@ -47,22 +44,26 @@ const LiveOrdersFeed: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
 
-  // Fetch orders on mount
   useEffect(() => {
     fetchOrders();
-  }, []);
 
-  // Subscribe to real-time updates
-  useEffect(() => {
     const channel = supabase
-      .channel('orders')
+      .channel('orders-feed')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
-          console.log('📡 Real-time update:', payload);
           if (payload.eventType === 'INSERT') {
-            setOrders(prev => [payload.new as Order, ...prev]);
+            const newOrder = payload.new as Order;
+            setOrders(prev => [newOrder, ...prev]);
+            toast.info(`New order from ${newOrder.customer_name}!`, {
+              icon: <ShoppingBag className="w-4 h-4 text-indigo-600" />,
+            });
+            // Play sound notification if possible
+            try {
+              const audio = new Audio('/order-alert.mp3');
+              audio.play();
+            } catch (e) {}
           } else if (payload.eventType === 'UPDATE') {
             setOrders(prev =>
               prev.map(order => order.id === payload.new.id ? payload.new as Order : order)
@@ -75,7 +76,7 @@ const LiveOrdersFeed: React.FC = () => {
       .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, []);
 
@@ -105,9 +106,9 @@ const LiveOrdersFeed: React.FC = () => {
         .eq('id', orderId);
 
       if (error) throw error;
-      console.log('✅ Order status updated:', newStatus);
+      toast.success(`Order marked as ${STATUS_CONFIG[newStatus].label}`);
     } catch (err) {
-      console.error('❌ Error updating order:', err);
+      toast.error('Failed to update status');
     } finally {
       setUpdating(null);
     }
@@ -120,115 +121,145 @@ const LiveOrdersFeed: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-600" />
+      <div className="flex flex-col items-center justify-center py-24 gap-4">
+        <div className="relative">
+          <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+          <Package className="w-5 h-5 text-indigo-600 absolute inset-0 m-auto animate-pulse" />
+        </div>
+        <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Loading Live Feed...</p>
       </div>
     );
   }
 
   if (orders.length === 0) {
     return (
-      <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
-        <p className="text-gray-600 font-medium">No orders yet</p>
-        <p className="text-gray-500 text-sm mt-1">Orders will appear here when customers place them</p>
+      <div className="text-center py-24 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm">
+        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+          <ShoppingBag className="w-8 h-8 text-slate-200" />
+        </div>
+        <h3 className="text-xl font-black text-slate-900 tracking-tighter uppercase">No Active Orders</h3>
+        <p className="text-sm font-bold text-slate-400 mt-2 uppercase tracking-widest">New orders will appear here in real-time.</p>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
       {orders.map((order) => {
         const nextStatus = getNextStatus(order.status);
-        const statusColor = STATUS_COLORS[order.status];
+        const config = STATUS_CONFIG[order.status];
+        const StatusIcon = config.icon;
 
         return (
           <div
             key={order.id}
             className={cn(
-              'border rounded-lg p-4 transition-all hover:shadow-lg',
-              statusColor,
-              order.status === 'new' && 'border-2 animate-pulse'
+              'group bg-white rounded-[2rem] border transition-all duration-500 hover:shadow-2xl hover:shadow-slate-200/50 flex flex-col overflow-hidden',
+              order.status === 'new' ? 'border-blue-200 shadow-lg shadow-blue-100/50 ring-4 ring-blue-50' : 'border-slate-100'
             )}
           >
-            {/* Header with Status */}
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className={cn(
-                  'px-3 py-1 rounded-full text-xs font-bold w-fit',
-                  order.status === 'new' && 'bg-blue-200 text-blue-800',
-                  order.status === 'accepted' && 'bg-purple-200 text-purple-800',
-                  order.status === 'preparing' && 'bg-orange-200 text-orange-800',
-                  order.status === 'ready' && 'bg-green-200 text-green-800',
-                  order.status === 'dispatched' && 'bg-gray-200 text-gray-800',
-                )}>
-                  {STATUS_LABELS[order.status]}
+            {/* Order Header */}
+            <div className={cn('p-6 flex items-center justify-between border-b border-slate-50', config.bg)}>
+              <div className="flex items-center gap-3">
+                <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shadow-sm', order.status === 'new' ? 'bg-white' : 'bg-white/50')}>
+                  <StatusIcon className={cn('w-5 h-5', config.color)} />
+                </div>
+                <div>
+                  <h4 className={cn('text-xs font-black uppercase tracking-widest', config.color)}>
+                    {config.label}
+                  </h4>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-0.5">
+                    Order #{order.id.slice(0, 8)}
+                  </p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-xs opacity-75">Order #{order.id.slice(0, 8)}</p>
+                <div className="flex items-center gap-1.5 text-slate-900 justify-end">
+                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-xs font-black tabular-nums">
+                    {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div className={cn(
+                  "text-[9px] font-black uppercase tracking-widest mt-1 px-2 py-0.5 rounded-full inline-block",
+                  order.order_type === 'delivery' ? "bg-indigo-100 text-indigo-600" : "bg-amber-100 text-amber-600"
+                )}>
+                  {order.order_type}
+                </div>
               </div>
             </div>
 
-            {/* Customer Info */}
-            <div className="space-y-2 mb-4 pb-4 border-b border-current border-opacity-20">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <User className="h-4 w-4" />
-                {order.customer_name}
+            {/* Customer & Items */}
+            <div className="p-6 flex-1 space-y-6">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center">
+                    <User className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-slate-900 tracking-tight uppercase">{order.customer_name}</p>
+                    <p className="text-[10px] font-bold text-slate-400 tracking-widest">{order.customer_phone}</p>
+                  </div>
+                </div>
+                {order.customer_address && (
+                  <div className="flex items-start gap-3 pl-1">
+                    <MapPin className="w-3.5 h-3.5 text-slate-300 mt-1 shrink-0" />
+                    <p className="text-[11px] font-medium text-slate-500 leading-relaxed line-clamp-2">
+                      {order.customer_address}
+                    </p>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Phone className="h-4 w-4" />
-                {order.customer_phone}
+
+              <div className="bg-slate-50/50 rounded-2xl p-4 space-y-3 border border-slate-50">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Items</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Qty</span>
+                </div>
+                <ul className="space-y-2">
+                  {order.items.map((item, idx) => (
+                    <li key={idx} className="flex justify-between items-center group/item">
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-tight group-hover/item:text-indigo-600 transition-colors">{item.name}</span>
+                      <span className="text-xs font-black text-slate-900 bg-white px-2 py-0.5 rounded-lg shadow-sm">x{item.quantity}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              {order.customer_address && (
-                <div className="flex items-start gap-2 text-sm">
-                  <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <span className="line-clamp-2">{order.customer_address}</span>
+            </div>
+
+            {/* Footer & Actions */}
+            <div className="p-6 pt-0 mt-auto">
+              <div className="flex items-center justify-between mb-6 pt-4 border-t border-slate-50">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Total Amount</span>
+                <span className="text-xl font-black text-slate-900 tracking-tighter">₹{order.total_amount}</span>
+              </div>
+
+              {nextStatus ? (
+                <Button
+                  onClick={() => updateOrderStatus(order.id, nextStatus)}
+                  disabled={updating === order.id}
+                  className={cn(
+                    "w-full h-14 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-3",
+                    order.status === 'new' ? "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20" : 
+                    "bg-slate-900 hover:bg-black text-white shadow-slate-900/20"
+                  )}
+                >
+                  {updating === order.id ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <>
+                      Mark as {STATUS_CONFIG[nextStatus].label}
+                      <ChevronRight className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <div className="h-14 bg-emerald-50 rounded-2xl flex items-center justify-center gap-2 border border-emerald-100">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                  <span className="text-xs font-black uppercase tracking-widest text-emerald-600">Order Completed</span>
                 </div>
               )}
-              <div className="flex items-center gap-2 text-sm">
-                <Clock className="h-4 w-4" />
-                {new Date(order.created_at).toLocaleTimeString()}
-              </div>
             </div>
-
-            {/* Order Type & Amount */}
-            <div className="flex items-center justify-between mb-4 pb-4 border-b border-current border-opacity-20">
-              <span className="text-xs font-semibold uppercase px-2 py-1 bg-white bg-opacity-50 rounded">
-                {order.order_type}
-              </span>
-              <span className="font-bold text-lg">£{order.total_amount.toFixed(2)}</span>
-            </div>
-
-            {/* Items */}
-            <div className="mb-4 pb-4 border-b border-current border-opacity-20">
-              <p className="text-xs font-bold uppercase opacity-75 mb-2">Items</p>
-              <ul className="space-y-1 text-sm">
-                {order.items.map((item, idx) => (
-                  <li key={idx} className="flex justify-between text-xs">
-                    <span>{item.name} x{item.quantity}</span>
-                    <span className="font-semibold">£{(item.price * item.quantity).toFixed(2)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Action Button */}
-            {nextStatus && (
-              <Button
-                onClick={() => updateOrderStatus(order.id, nextStatus)}
-                disabled={updating === order.id}
-                className="w-full bg-white bg-opacity-80 hover:bg-opacity-100 text-gray-800 border border-current border-opacity-20"
-              >
-                {updating === order.id && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                <span>Mark as {STATUS_LABELS[nextStatus]}</span>
-                <ChevronRight className="h-4 w-4 ml-auto" />
-              </Button>
-            )}
-            {!nextStatus && (
-              <div className="text-center text-xs font-semibold opacity-75 py-2">
-                ✓ Order Complete
-              </div>
-            )}
           </div>
         );
       })}

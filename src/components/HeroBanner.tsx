@@ -45,12 +45,12 @@ const HeroBanner = () => {
           {/* Native-like Action Area */}
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-0 bg-white p-1.5 rounded-2xl sm:rounded-full shadow-2xl shadow-black/50 max-w-xl group transition-all hover:ring-8 hover:ring-primary/5">
             {/* Search Input (Trigger Scroll) */}
-            <div className="relative flex-1 flex items-center px-4 py-2 sm:py-0">
+            <div className="relative flex-1 flex items-center px-4 py-1.5 sm:py-0">
               <Search className="absolute left-4 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
               <input 
                 type="text" 
-                placeholder="Search for biryani, rolls, or starters..."
-                className="w-full pl-8 pr-2 py-1.5 bg-transparent text-sm font-black text-gray-900 placeholder:text-gray-400 focus:outline-none cursor-pointer"
+                placeholder="Search menu..."
+                className="w-full pl-8 pr-2 py-1 bg-transparent text-sm font-black text-gray-900 placeholder:text-gray-400 focus:outline-none cursor-pointer"
                 onClick={scrollToMenu}
                 readOnly
               />
@@ -59,9 +59,9 @@ const HeroBanner = () => {
             {/* Quick Action Button */}
             <button 
               onClick={scrollToMenu}
-              className="bg-primary text-primary-foreground px-8 py-3 sm:py-3.5 rounded-xl sm:rounded-full text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-95 transition-all shadow-xl shadow-primary/20"
+              className="bg-primary text-primary-foreground px-6 sm:px-8 py-3.5 rounded-xl sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-primary/90 active:scale-95 transition-all shadow-xl shadow-primary/20"
             >
-              Explore Menu
+              Order Now
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>

@@ -51,7 +51,7 @@ const MenuSection = () => {
       {!loading && (
         <>
           {/* Sticky Navigation & Search Container */}
-          <div className="sticky top-[72px] z-40 bg-background/80 backdrop-blur-xl border-b border-border/40 pb-2 pt-4 transition-all duration-300">
+          <div className="sticky top-[72px] z-40 bg-background/95 backdrop-blur-xl border-b border-border/40 pb-4 pt-6 transition-all duration-300">
             <div className="container mx-auto px-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 {/* Search - Native App Style */}
@@ -126,9 +126,12 @@ const MenuSection = () => {
                 >
                   <MenuCard 
                     item={{
-                      ...item,
+                      id: item.id,
+                      name: item.name,
+                      price: item.price,
+                      category: item.category,
                       image: item.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop',
-                      is_veg: true, 
+                      isVeg: item.is_veg ?? true, 
                       description: item.description || 'Traditional recipe crafted with authentic spices.',
                     }}
                   />
