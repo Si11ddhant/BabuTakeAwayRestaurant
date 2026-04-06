@@ -45,7 +45,7 @@ const HeroBanner = () => {
       {/* 1. Full Bleed Image */}
       <div className="relative w-full h-[280px] sm:h-[320px] md:h-[380px] bg-slate-900 rounded-b-[2.5rem] overflow-hidden shadow-sm">
         <img
-          src="/hero2.png"
+          src="/hero3.png"
           alt="Babu Takeaway Signature Dishes"
           className="w-full h-full object-cover"
         />
