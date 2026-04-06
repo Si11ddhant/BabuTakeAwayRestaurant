@@ -17,14 +17,15 @@ const TopNav = () => {
   const navigate = useNavigate();
   const { totalItems, setIsCartOpen } = useCart();
   const { role } = useAuth();
+  
   const [scrolled, setScrolled] = useState(false);
   const [desktopQuery, setDesktopQuery] = useState("");
+  const [activeTab, setActiveTab] = useState("home"); // Track active tab for mobile
 
   const isAdmin = role === 'admin';
 
-  // 1. TRIGGER THE NAVBAR ONLY AFTER SCROLLING PAST THE HERO IMAGE
+  // 1. TRIGGER THE DESKTOP NAVBAR ONLY AFTER SCROLLING
   useEffect(() => {
-    // Triggers when user scrolls past 200px (roughly past the hero banner)
     const onScroll = () => setScrolled(window.scrollY > 200);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -34,7 +35,6 @@ const TopNav = () => {
   const scrollToHash = (hash: string) => {
     const el = document.getElementById(hash);
     if (el) {
-      // Mobile offset accounts for the bottom nav visually, though technically scrolling to top
       const yOffset = window.matchMedia("(max-width: 767px)").matches ? -20 : -88;
       const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
       window.scrollTo({ top: y, behavior: "smooth" });
@@ -43,7 +43,9 @@ const TopNav = () => {
     }
   };
 
-  const handleNavClick = (hash: string) => {
+  const handleNavClick = (hash: string, tabName: string = "") => {
+    if (tabName) setActiveTab(tabName);
+    
     if (location.pathname !== "/") {
       window.location.href = `/#${hash}`;
       return;
@@ -56,10 +58,11 @@ const TopNav = () => {
     if (desktopQuery.trim()) {
       window.dispatchEvent(new CustomEvent("hero-search", { detail: desktopQuery.trim() }));
     }
-    handleNavClick("menu-section");
+    handleNavClick("menu-section", "menu");
   };
 
   const handleAdminClick = () => {
+    setActiveTab("admin");
     window.dispatchEvent(new CustomEvent("admin-transition-start"));
     setTimeout(() => {
       navigate("/admin");
@@ -69,55 +72,53 @@ const TopNav = () => {
   return (
     <>
       {/* ========================================== */}
-      {/* TOP NAVIGATION (Desktop & Mobile Header)   */}
+      {/* TOP NAVIGATION (Desktop Only)              */}
       {/* ========================================== */}
-      {/* 2. DYNAMIC CLASSES TO HIDE/SHOW ON SCROLL */}
+      {/* Added 'hidden md:block' to prevent the ugly header on mobile */}
       <nav
         className={cn(
-          "fixed top-0 left-0 right-0 z-[100] w-full border-b border-[#E8E8E8]/90 bg-white/95 backdrop-blur-xl transition-all duration-300 transform",
+          "hidden md:block fixed top-0 left-0 right-0 z-[100] w-full border-b border-gray-100 bg-white/95 backdrop-blur-xl transition-all duration-300 transform shadow-sm",
           scrolled
-            ? "translate-y-0 opacity-100 shadow-sm py-0"
+            ? "translate-y-0 opacity-100"
             : "-translate-y-full opacity-0 pointer-events-none"
         )}
         role="navigation"
         aria-label="Primary navigation"
       >
-        <div className="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-10 pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between gap-3 px-6 lg:px-10 pt-[env(safe-area-inset-top)]">
           {/* Logo */}
           <Link
             to="/"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            onClick={() => handleNavClick("top", "home")}
             className="group min-w-0 shrink no-underline flex items-center gap-2"
-            aria-label="Babu Takeaway and Restaurant home"
           >
-            <span className="font-serif text-lg md:text-xl font-bold leading-snug tracking-tight text-[#1C1C1C]">
-              Babu Takeaway <span className="text-primary">& Restaurant</span>
+            <span className="font-serif text-xl font-black leading-snug tracking-tight text-gray-900">
+              Babu Takeaway
             </span>
           </Link>
 
           {/* Desktop Search */}
-          <form onSubmit={handleDesktopSearch} className="hidden flex-1 max-w-md items-center md:flex ml-8">
+          <form onSubmit={handleDesktopSearch} className="flex-1 max-w-md items-center flex ml-8">
             <div className="relative w-full group">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" />
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors" />
               <input
                 type="search"
                 value={desktopQuery}
                 onChange={(e) => setDesktopQuery(e.target.value)}
                 placeholder="Search for delicious meals..."
-                className="h-12 w-full rounded-2xl border border-[#E8E8E8] bg-slate-50/50 pl-11 pr-4 text-sm font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                aria-label="Search menu"
+                className="h-11 w-full rounded-full border border-gray-200 bg-gray-50 pl-11 pr-4 text-sm font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-inner"
               />
             </div>
           </form>
 
           {/* Desktop Links & Actions */}
-          <div className="hidden items-center gap-6 md:flex ml-auto">
+          <div className="items-center gap-6 flex ml-auto">
             {navLinks.map(({ label, hash }) => (
               <button
                 key={label}
                 type="button"
-                onClick={() => handleNavClick(hash)}
-                className="text-sm font-bold text-slate-600 transition-colors hover:text-primary"
+                onClick={() => handleNavClick(hash, label.toLowerCase())}
+                className="text-[14px] font-bold text-gray-500 transition-colors hover:text-primary"
               >
                 {label}
               </button>
@@ -127,14 +128,14 @@ const TopNav = () => {
             <button
               type="button"
               onClick={handleAdminClick}
-              className="group relative flex h-10 items-center gap-2 rounded-xl bg-slate-50 px-4 text-sm font-bold text-slate-700 transition-all hover:bg-slate-100 hover:text-primary border border-[#E8E8E8]"
+              className="group relative flex h-10 items-center gap-2 rounded-full bg-gray-50 px-5 text-sm font-bold text-gray-700 transition-all hover:bg-gray-100 hover:text-primary border border-gray-200"
             >
               <LayoutDashboard className="h-4 w-4" />
               <span>Admin</span>
               {isAdmin && (
-                <span className="absolute -right-1 -top-1 flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-electric-blue opacity-75"></span>
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-electric-blue shadow-[0_0_8px_#00D2FF]"></span>
+                <span className="absolute 1 top-0 right-0 flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-500 border-2 border-white"></span>
                 </span>
               )}
             </button>
@@ -144,10 +145,9 @@ const TopNav = () => {
               type="button"
               whileTap={{ scale: 0.95 }}
               onClick={() => setIsCartOpen(true)}
-              className="relative inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary/5 px-5 text-sm font-black text-primary transition-colors hover:bg-primary hover:text-white group"
-              aria-label={totalItems > 0 ? `Cart, ${totalItems} items` : "Open cart"}
+              className="relative inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary/10 px-6 text-sm font-black text-primary transition-colors hover:bg-primary hover:text-white group"
             >
-              <ShoppingBag className="h-5 w-5" strokeWidth={2.5} />
+              <ShoppingBag className="h-4 w-4" strokeWidth={2.5} />
               <span>Cart</span>
               <AnimatePresence>
                 {totalItems > 0 && (
@@ -155,8 +155,7 @@ const TopNav = () => {
                     key={totalItems}
                     initial={{ scale: 0.5, opacity: 0 }}
                     animate={{ scale: [0.5, 1.4, 1], opacity: 1 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 15 }}
-                    className="absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#1C1C1C] px-1.5 text-[11px] font-black text-white ring-4 ring-white group-hover:bg-white group-hover:text-primary transition-colors"
+                    className="absolute -right-1.5 -top-1.5 flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-gray-900 px-1.5 text-[10px] font-black text-white ring-2 ring-white transition-colors"
                   >
                     {totalItems > 99 ? "99+" : totalItems}
                   </motion.span>
@@ -170,61 +169,73 @@ const TopNav = () => {
       {/* ========================================== */}
       {/* BOTTOM NAVIGATION (Mobile Only)            */}
       {/* ========================================== */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[100] h-16 bg-white border-t border-[#E8E8E8] pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgba(0,0,0,0.06)]">
-        <div className="flex h-full items-center justify-around px-2">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[100] h-[68px] bg-white border-t border-gray-100 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
+        <div className="flex h-full items-center justify-around px-1">
 
           {/* Home */}
           <button
-            onClick={() => handleNavClick("top")}
-            className="flex flex-col items-center justify-center w-16 gap-1 text-slate-500 hover:text-primary active:scale-95 transition-all"
+            onClick={() => handleNavClick("top", "home")}
+            className={cn(
+              "flex flex-col items-center justify-center w-16 gap-1 active:scale-95 transition-all duration-200",
+              activeTab === "home" ? "text-primary" : "text-gray-400 hover:text-gray-600"
+            )}
           >
-            <Home className="h-5 w-5" />
-            <span className="text-[10px] font-bold">Home</span>
+            <Home className="h-6 w-6" strokeWidth={activeTab === "home" ? 2.5 : 2} />
+            <span className={cn("text-[10px]", activeTab === "home" ? "font-black" : "font-semibold")}>Home</span>
           </button>
 
           {/* Menu */}
           <button
-            onClick={() => handleNavClick("menu-section")}
-            className="flex flex-col items-center justify-center w-16 gap-1 text-slate-500 hover:text-primary active:scale-95 transition-all"
+            onClick={() => handleNavClick("menu-section", "menu")}
+            className={cn(
+              "flex flex-col items-center justify-center w-16 gap-1 active:scale-95 transition-all duration-200",
+              activeTab === "menu" ? "text-primary" : "text-gray-400 hover:text-gray-600"
+            )}
           >
-            <UtensilsCrossed className="h-5 w-5" />
-            <span className="text-[10px] font-bold">Menu</span>
+            <UtensilsCrossed className="h-6 w-6" strokeWidth={activeTab === "menu" ? 2.5 : 2} />
+            <span className={cn("text-[10px]", activeTab === "menu" ? "font-black" : "font-semibold")}>Menu</span>
           </button>
 
-          {/* Cart (Center Prominent) */}
+          {/* Cart */}
           <button
-            onClick={() => setIsCartOpen(true)}
-            className="relative flex flex-col items-center justify-center w-16 gap-1 text-slate-500 hover:text-primary active:scale-95 transition-all"
+            onClick={() => { setIsCartOpen(true); setActiveTab("cart"); }}
+            className={cn(
+              "relative flex flex-col items-center justify-center w-16 gap-1 active:scale-95 transition-all duration-200",
+              activeTab === "cart" ? "text-primary" : "text-gray-400 hover:text-gray-600"
+            )}
           >
             <div className="relative">
-              <ShoppingBag className="h-5 w-5 text-[#1C1C1C]" />
+              <ShoppingBag className="h-6 w-6" strokeWidth={activeTab === "cart" ? 2.5 : 2} />
               <AnimatePresence>
                 {totalItems > 0 && (
                   <motion.span
                     key={totalItems}
                     initial={{ scale: 0.5, opacity: 0 }}
                     animate={{ scale: [0.5, 1.4, 1], opacity: 1 }}
-                    className="absolute -right-2.5 -top-2 flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-black text-white ring-2 ring-white"
+                    className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-black text-white ring-[2px] ring-white"
                   >
                     {totalItems > 99 ? "99+" : totalItems}
                   </motion.span>
                 )}
               </AnimatePresence>
             </div>
-            <span className="text-[10px] font-bold text-[#1C1C1C]">Cart</span>
+            <span className={cn("text-[10px]", activeTab === "cart" ? "font-black" : "font-semibold")}>Cart</span>
           </button>
 
           {/* Admin / Profile */}
           <button
             onClick={handleAdminClick}
-            className="relative flex flex-col items-center justify-center w-16 gap-1 text-slate-500 hover:text-primary active:scale-95 transition-all"
+            className={cn(
+              "relative flex flex-col items-center justify-center w-16 gap-1 active:scale-95 transition-all duration-200",
+              activeTab === "admin" ? "text-primary" : "text-gray-400 hover:text-gray-600"
+            )}
           >
-            <LayoutDashboard className="h-5 w-5" />
-            <span className="text-[10px] font-bold">Admin</span>
+            <LayoutDashboard className="h-6 w-6" strokeWidth={activeTab === "admin" ? 2.5 : 2} />
+            <span className={cn("text-[10px]", activeTab === "admin" ? "font-black" : "font-semibold")}>Admin</span>
             {isAdmin && (
               <span className="absolute right-3 top-0 flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-electric-blue opacity-75"></span>
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-electric-blue"></span>
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500 border border-white"></span>
               </span>
             )}
           </button>

@@ -1,8 +1,13 @@
 import heroFood from "@/assets/hero-food.jpg";
-import { Search, Star, Clock, Percent, ArrowLeft, Share2, MoreVertical, MapPin } from "lucide-react";
-import { useState } from "react";
+import { 
+  Search, 
+  MapPin, 
+  ChevronDown, 
+  User, 
+  Mic 
+} from "lucide-react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
 
 // Mapping to actual database categories
 const quickCategories = [
@@ -16,8 +21,11 @@ const quickCategories = [
 
 const HeroBanner = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const navigate = useNavigate();
+  const [userLocation, setUserLocation] = useState("Navi Mumbai");
+
+  useEffect(() => {
+    // Geolocation logic placeholder
+  }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,155 +37,103 @@ const HeroBanner = () => {
       if (menuSection) {
         window.scrollTo({ top: menuSection.offsetTop - 80, behavior: "smooth" });
       }
-      setIsSearchOpen(false);
     }
   };
 
   return (
-    <section className="bg-gray-50 pb-2">
-      {/* 1. Full Bleed Image with Overlay Icons */}
-      <div className="relative w-full h-[240px] sm:h-[300px] md:h-[360px] bg-slate-900">
+    <section className="bg-gray-50 pb-6">
+      {/* 1. Full Bleed Image */}
+      <div className="relative w-full h-[280px] sm:h-[320px] md:h-[380px] bg-slate-900 rounded-b-[2.5rem] overflow-hidden shadow-sm">
         <img
-          src={heroFood}
-          alt="Babu Takeaway"
-          className="w-full h-full object-cover opacity-90"
+          src="/hero2.png"
+          alt="Babu Takeaway Signature Dishes"
+          className="w-full h-full object-cover"
         />
 
-        {/* Gradient for icon visibility */}
-        <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-black/70 to-transparent z-10" />
+        {/* Top gradient ONLY - to ensure white location text is readable */}
+        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-black/70 to-transparent z-10" />
 
-        {/* Top Action Strip Overlay */}
+        {/* Top Location & Profile Header */}
         <div className="absolute top-0 left-0 right-0 z-20 pt-[env(safe-area-inset-top)]">
-          <div className="container mx-auto px-4 py-4 max-w-3xl flex items-center justify-between gap-3">
-            <button
-              onClick={() => navigate(-1)}
-              className="p-2 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" strokeWidth={2.5} />
-            </button>
-
-            {/* Expandable Search or Icon */}
-            {isSearchOpen ? (
-              <form onSubmit={handleSearchSubmit} className="flex-1 origin-right animate-in fade-in zoom-in duration-200">
-                <div className="flex items-center bg-white rounded-full px-4 py-2 shadow-lg">
-                  <input
-                    type="search"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search dishes..."
-                    autoFocus
-                    className="w-full bg-transparent border-none outline-none text-sm font-medium text-gray-800 placeholder:text-gray-400"
-                  />
-                  <button type="submit">
-                    <Search className="h-4 w-4 text-primary shrink-0 ml-2" />
-                  </button>
+          <div className="container mx-auto px-4 py-5 max-w-3xl flex items-center justify-between">
+            {/* Location Selector */}
+            <div className="flex items-center gap-2 cursor-pointer group">
+              <MapPin className="w-6 h-6 text-white group-hover:text-primary transition-colors" fill="#ef4444" />
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-white/90 uppercase tracking-wider mb-0.5 drop-shadow-md">Delivering To</span>
+                <div className="flex items-center gap-1 text-white">
+                  <span className="font-extrabold text-lg tracking-tight drop-shadow-md truncate max-w-[150px] sm:max-w-[200px]">
+                    {userLocation}
+                  </span>
+                  <ChevronDown className="w-5 h-5 drop-shadow-md shrink-0" />
                 </div>
-              </form>
-            ) : (
-              <div className="flex-1 flex justify-end gap-3">
-                <button
-                  onClick={() => setIsSearchOpen(true)}
-                  className="p-2 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30 transition-colors"
-                >
-                  <Search className="w-5 h-5" strokeWidth={2.5} />
-                </button>
-                <button className="p-2 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30 transition-colors">
-                  <Share2 className="w-5 h-5" strokeWidth={2.5} />
-                </button>
-                <button className="p-2 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30 transition-colors">
-                  <MoreVertical className="w-5 h-5" strokeWidth={2.5} />
-                </button>
               </div>
-            )}
+            </div>
+
+            {/* Profile Icon */}
+            <button className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-white shadow-sm hover:bg-white/30 transition-colors shrink-0">
+              <User className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 max-w-3xl relative z-30 -mt-12 md:-mt-16">
+      <div className="container mx-auto px-4 max-w-3xl relative z-30 -mt-10">
+        
+        {/* 2. Floating Search Bar */}
+        <form 
+          onSubmit={handleSearchSubmit} 
+          className="bg-white rounded-2xl shadow-[0_12px_30px_rgb(0,0,0,0.08)] p-3.5 flex items-center gap-3 mb-8 mx-2 md:mx-0 border border-gray-100"
+        >
+          <Search className="w-6 h-6 text-primary shrink-0 ml-1" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search for 'Biryani' or 'Naan'..."
+            className="flex-1 bg-transparent border-none outline-none text-[16px] font-semibold text-gray-800 placeholder:text-gray-400 w-full"
+          />
+          <div className="w-px h-6 bg-gray-200 shrink-0"></div>
+          <button type="button" className="shrink-0 mr-1 p-1.5 hover:bg-gray-50 rounded-full transition-colors">
+            <Mic className="w-5 h-5 text-gray-400" />
+          </button>
+        </form>
 
-        {/* 2. Floating Restaurant Info Card */}
-        <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] p-5 mb-5 border border-gray-100">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight leading-none mb-1.5">
-                Babu Takeaway
-              </h1>
-              <div className="flex items-center gap-1.5 text-[13px] text-gray-500 font-semibold mb-0.5">
-                <span>North Indian, Chinese</span>
-              </div>
-              <div className="flex items-center gap-1 text-[12px] text-gray-400 font-semibold">
-                 Navi Mumbai <span className="mx-1">•</span> 2.5 km
-              </div>
-            </div>
-
-            {/* Rating Block */}
-            <div className="flex flex-col items-center bg-green-700 text-white px-2.5 py-1.5 rounded-xl shrink-0 shadow-sm">
-              <div className="flex items-center gap-1 text-sm font-black">
-                4.3 <Star className="w-3.5 h-3.5 fill-current" />
-              </div>
-              <div className="w-full border-t border-white/30 my-1" />
-              <span className="text-[9px] font-bold opacity-90 tracking-wide">10K+ ratings</span>
-            </div>
-          </div>
-
-          {/* Delivery Estimate Box (Inside the card) */}
-          <div className="flex items-center gap-3 bg-gray-50 rounded-2xl p-3 border border-gray-100">
-            <div className="bg-white p-2 rounded-full shadow-sm shrink-0">
-              <Clock className="w-4 h-4 text-primary" strokeWidth={2.5} />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-black text-gray-800">30-35 mins</span>
-              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mt-0.5">Delivery to your location</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Dashed Offers Strip (Outside the card) */}
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-6 -mx-4 px-4 md:mx-0 md:px-0">
-          <div className="flex items-center gap-3 bg-blue-50/80 border border-dashed border-blue-300 p-3.5 rounded-2xl min-w-[240px] shrink-0">
-            <div className="bg-blue-600 p-1.5 rounded-full text-white shadow-sm shrink-0">
-              <Percent className="w-4 h-4" strokeWidth={3} />
-            </div>
-            <div className="flex flex-col justify-center">
-              <p className="text-sm font-black text-blue-900 leading-none mb-1.5">20% OFF up to ₹50</p>
-              <p className="text-[10px] text-blue-700 font-bold uppercase tracking-wider">Use code BABU20</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 bg-purple-50/80 border border-dashed border-purple-300 p-3.5 rounded-2xl min-w-[240px] shrink-0">
-            <div className="bg-purple-600 p-1.5 rounded-full text-white shadow-sm shrink-0">
-              <Percent className="w-4 h-4" strokeWidth={3} />
-            </div>
-            <div className="flex flex-col justify-center">
-              <p className="text-sm font-black text-purple-900 leading-none mb-1.5">Flat ₹100 OFF</p>
-              <p className="text-[10px] text-purple-700 font-bold uppercase tracking-wider">On orders above ₹500</p>
-            </div>
-          </div>
-        </div>
-
-        {/* 4. Circular Quick Categories */}
-        <div className="mb-2">
-          <div className="flex items-center justify-between mb-4">
-             <h3 className="text-[13px] font-black uppercase tracking-widest text-gray-400">Explore Menu</h3>
-             <div className="h-px bg-gray-200 flex-1 ml-4" />
+        {/* 3. Swiggy-Style Quick Categories */}
+        <div className="mb-2 mt-2">
+          {/* Swiggy/Zomato conversational header */}
+          <div className="flex items-center justify-between mb-4 px-1 md:px-0">
+             <h3 className="text-[17px] font-black tracking-tight text-gray-900">
+               What's on your mind?
+             </h3>
           </div>
           
-          <div className="flex gap-5 overflow-x-auto scrollbar-hide pb-4 -mx-4 px-4 md:mx-0 md:px-0">
+          <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-6 -mx-4 px-5 md:mx-0 md:px-1">
             {quickCategories.map((cat, idx) => (
               <motion.div
                 key={cat.name}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.05 }}
-                className="flex flex-col items-center gap-2.5 cursor-pointer active:scale-95 transition-transform shrink-0 w-[72px]"
+                className="flex flex-col items-center gap-2.5 cursor-pointer active:scale-95 transition-transform shrink-0 w-[84px]"
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent("hero-search", { detail: cat.name }));
                   document.getElementById("menu-section")?.scrollIntoView({ behavior: "smooth" });
                 }}
               >
-                <div className="w-16 h-16 rounded-full overflow-hidden shadow-sm border-2 border-white ring-1 ring-gray-100">
-                  <img src={cat.img} alt={cat.name} className="w-full h-full object-cover" />
+                {/* Larger, softer image container with no harsh borders */}
+                <div className="w-[84px] h-[84px] rounded-full overflow-hidden shadow-[0_4px_12px_rgb(0,0,0,0.06)] bg-white mb-1 relative">
+                  <div className="absolute inset-0 bg-black/5 z-10 rounded-full pointer-events-none" /> {/* Subtle inner shadow/overlay */}
+                  <img 
+                    src={cat.img} 
+                    alt={cat.name} 
+                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" 
+                  />
                 </div>
-                <span className="text-[11px] font-bold text-gray-700 text-center leading-tight">{cat.name}</span>
+                {/* Tighter, bolder typography */}
+                <span className="text-[13px] font-bold text-gray-800 text-center leading-tight tracking-tight">
+                  {cat.name}
+                </span>
               </motion.div>
             ))}
           </div>
