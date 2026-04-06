@@ -19,11 +19,17 @@ export const useOrdersRealtime = () => {
       if (fetchError) throw fetchError;
 
       // Transform database records to Order interface
-      const transformedOrders = (data || []).map((order: any) => ({
-        ...order,
-        createdAt: new Date(order.created_at),
-        updatedAt: new Date(order.updated_at),
-        isNew: order.status === 'New',
+      const transformedOrders: Order[] = (data || []).map((o: any) => ({
+        id: o.id,
+        customerName: o.customer_name,
+        customerPhone: o.customer_phone,
+        customerAddress: o.customer_address,
+        items: o.items || [],
+        total: o.total_amount,
+        type: o.order_type as 'delivery' | 'takeaway',
+        status: o.status as Order['status'],
+        createdAt: new Date(o.created_at),
+        isNew: o.status === 'new' || o.status === 'New',
       }));
 
       setOrders(transformedOrders);
@@ -49,12 +55,18 @@ export const useOrdersRealtime = () => {
         { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            // New order placed by customer
-            const newOrder = {
-              ...payload.new,
-              createdAt: new Date(payload.new.created_at),
-              updatedAt: new Date(payload.new.updated_at),
-              isNew: true,
+            const newRow = payload.new as any;
+            const newOrder: Order = {
+              id: newRow.id,
+              customerName: newRow.customer_name,
+              customerPhone: newRow.customer_phone,
+              customerAddress: newRow.customer_address,
+              items: newRow.items || [],
+              total: newRow.total_amount,
+              type: newRow.order_type as 'delivery' | 'takeaway',
+              status: newRow.status as Order['status'],
+              createdAt: new Date(newRow.created_at),
+              isNew: newRow.status === 'new' || newRow.status === 'New',
             };
 
             setOrders((prev) => [newOrder, ...prev]);
@@ -62,21 +74,27 @@ export const useOrdersRealtime = () => {
             // Trigger notification
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification('New Order', {
-                body: `Order from ${newOrder.customer_name}`,
+                body: `Order from ${newOrder.customerName}`,
                 tag: 'new-order',
               });
             }
           } else if (payload.eventType === 'UPDATE') {
-            // Admin updated order status
-            const updatedOrder = {
-              ...payload.new,
-              createdAt: new Date(payload.new.created_at),
-              updatedAt: new Date(payload.new.updated_at),
-              isNew: payload.new.status === 'New',
+            const updatedRow = payload.new as any;
+            const updatedOrder: Order = {
+              id: updatedRow.id,
+              customerName: updatedRow.customer_name,
+              customerPhone: updatedRow.customer_phone,
+              customerAddress: updatedRow.customer_address,
+              items: updatedRow.items || [],
+              total: updatedRow.total_amount,
+              type: updatedRow.order_type as 'delivery' | 'takeaway',
+              status: updatedRow.status as Order['status'],
+              createdAt: new Date(updatedRow.created_at),
+              isNew: updatedRow.status === 'new' || updatedRow.status === 'New',
             };
 
             setOrders((prev) =>
-              prev.map((o) => (o.id === payload.new.id ? updatedOrder : o))
+              prev.map((o) => (o.id === updatedRow.id ? updatedOrder : o))
             );
           } else if (payload.eventType === 'DELETE') {
             // Order cancelled
