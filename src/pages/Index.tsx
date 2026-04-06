@@ -8,12 +8,11 @@ import TopNav from "@/components/TopNav";
 
 const Index = () => (
   <CartProvider>
-    <div className="min-h-screen bg-background selection:bg-primary/30">
+    <div className="min-h-screen bg-white selection:bg-primary/25">
       {/* Primary Responsive Navigation at the top */}
       <TopNav />
       
-      {/* Hero Section - No padding top as TopNav is fixed and covers first 72px */}
-      <div className="bg-charcoal overflow-hidden">
+      <div className="overflow-hidden bg-gradient-to-b from-[#faf8f4] via-white to-white">
         <HeroBanner />
       </div>
 

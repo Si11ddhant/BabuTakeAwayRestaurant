@@ -58,14 +58,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return [...prev, { ...item, quantity: 1 }];
       });
       setIsLoading(false);
-      setIsCartOpen(true); // Open cart when item is added
+      
       toast.success(`${item.name} added to cart!`, {
         description: "Your delicious meal is waiting in the cart.",
         position: "top-center",
-        duration: 2000,
+        duration: 3000,
+        action: {
+          label: "View Cart",
+          onClick: () => setIsCartOpen(true),
+        },
       });
     }, 300);
-  }, []);
+  }, [setIsCartOpen]);
 
   const removeItem = useCallback((id: string) => {
     setIsLoading(true);

@@ -1,12 +1,22 @@
-import { Plus, Clock, Star } from "lucide-react";
+import { Plus, Clock, Star, Check } from "lucide-react";
 import type { MenuItem } from "@/data/menuData";
 import { useCart } from "@/context/CartContext";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 const MenuCard = ({ item }: { item: MenuItem }) => {
   const { addItem } = useCart();
+  const [isAdding, setIsAdding] = useState(false);
+
+  const handleAdd = () => {
+    setIsAdding(true);
+    addItem(item);
+    setTimeout(() => setIsAdding(false), 2000);
+  };
 
   return (
-    <div className="menu-card flex flex-row sm:flex-col h-full group bg-white hover:bg-white/50 transition-all duration-500 overflow-hidden rounded-2xl sm:rounded-none">
+    <div className="menu-card group flex h-full flex-row overflow-hidden sm:flex-col">
       {/* Image Container */}
       <div className="relative w-1/3 sm:w-full aspect-square sm:aspect-[4/3] overflow-hidden shrink-0">
         <img
@@ -57,14 +67,56 @@ const MenuCard = ({ item }: { item: MenuItem }) => {
         <div className="flex items-center justify-between mt-2 sm:mt-4 pt-2 sm:pt-3 border-t border-gray-50">
           <div className="flex flex-col">
             <span className="text-[8px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest hidden sm:block">Price</span>
-            <span className="font-black text-base sm:text-lg text-gray-900 tracking-tighter">₹{item.price}</span>
+            <span className="font-black text-base sm:text-lg text-gray-900 tracking-tighter">£{item.price.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</span>
           </div>
           <button
-            onClick={() => addItem(item)}
-            className="btn-primary-glow flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-black uppercase tracking-wider"
+            type="button"
+            onClick={handleAdd}
+            disabled={isAdding}
+            className={cn(
+              "btn-primary-glow relative flex items-center gap-1.5 px-3 py-2 text-[10px] font-extrabold uppercase tracking-wider sm:gap-2 sm:px-5 sm:py-2.5 sm:text-xs min-w-[70px] sm:min-w-[90px] justify-center transition-all duration-300",
+              isAdding && "bg-green-500 hover:bg-green-600 shadow-green-500/25"
+            )}
           >
-            <Plus className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
-            Add
+            <AnimatePresence mode="wait">
+              {isAdding ? (
+                <motion.div
+                  key="check"
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.5, opacity: 0 }}
+                  className="flex items-center gap-1.5"
+                >
+                  <Check className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
+                  <span>Added</span>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="add"
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.5, opacity: 0 }}
+                  className="flex items-center gap-1.5"
+                >
+                  <Plus className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
+                  <span>Add</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
+            {/* +1 Animation */}
+            <AnimatePresence>
+              {isAdding && (
+                <motion.span
+                  initial={{ y: 0, opacity: 0, scale: 0.5 }}
+                  animate={{ y: -30, opacity: 1, scale: 1.2 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute -top-2 right-0 text-primary font-black text-sm pointer-events-none"
+                >
+                  +1
+                </motion.span>
+              )}
+            </AnimatePresence>
           </button>
         </div>
       </div>

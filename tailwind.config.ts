@@ -15,7 +15,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
+        serif: ['"Playfair Display"', 'Georgia', 'serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -67,6 +68,9 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        "electric-blue": "#00D2FF",
+        "neon-purple": "#9D50BB",
+        "dark-bg": "#0B0E14",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -90,10 +94,26 @@ export default {
             height: "0",
           },
         },
+        "neon-pulse": {
+          "0%, 100%": {
+            boxShadow: "0 0 15px rgba(0, 210, 255, 0.4), inset 0 0 10px rgba(0, 210, 255, 0.2)",
+            borderColor: "rgba(0, 210, 255, 0.6)",
+          },
+          "50%": {
+            boxShadow: "0 0 30px rgba(0, 210, 255, 0.7), inset 0 0 20px rgba(0, 210, 255, 0.4)",
+            borderColor: "rgba(0, 210, 255, 1)",
+          },
+        },
+        "float": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-10px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "neon-pulse": "neon-pulse 2s infinite ease-in-out",
+        "float": "float 6s infinite ease-in-out",
       },
     },
   },

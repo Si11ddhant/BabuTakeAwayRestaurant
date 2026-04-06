@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMenuItems } from "@/hooks/useMenuItems";
 import MenuCard from "@/components/MenuCard";
 import { Search, Loader } from "lucide-react";
@@ -15,16 +15,31 @@ const MenuSection = () => {
     }
   }, [categories, activeCategory]);
 
+  useEffect(() => {
+    const onHeroSearch = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      if (typeof detail === "string") setSearchQuery(detail);
+    };
+    window.addEventListener("hero-search", onHeroSearch);
+    return () => window.removeEventListener("hero-search", onHeroSearch);
+  }, []);
+
   const currentCategory = activeCategory || (categories[0] ?? "");
-  const filtered = getItemsByCategory(currentCategory).filter(
-    (item) =>
-      searchQuery === "" ||
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const q = searchQuery.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    const pool = q ? menuItems : getItemsByCategory(currentCategory);
+    if (!q) return pool;
+    return pool.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        (item.description ?? "").toLowerCase().includes(q)
+    );
+  }, [menuItems, currentCategory, q, getItemsByCategory]);
+
+  const listTitle = q ? "Search results" : currentCategory;
 
   return (
-    <section className="relative" id="menu-section">
+    <section className="relative scroll-mt-28 md:scroll-mt-24" id="menu-section">
       {/* Loading State */}
       {loading && (
         <div className="flex items-center justify-center py-20">
@@ -51,7 +66,7 @@ const MenuSection = () => {
       {!loading && (
         <>
           {/* Sticky Navigation & Search Container */}
-          <div className="sticky top-[72px] z-40 bg-background/95 backdrop-blur-xl border-b border-border/40 pb-4 pt-6 transition-all duration-300">
+          <div className="sticky top-[4.5rem] z-40 border-b border-[#E8E8E8] bg-white/95 pb-4 pt-6 backdrop-blur-xl transition-all duration-300">
             <div className="container mx-auto px-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 {/* Search - Native App Style */}
@@ -62,7 +77,7 @@ const MenuSection = () => {
                     placeholder="Search for dishes..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3 bg-secondary/50 border border-transparent rounded-2xl text-sm font-medium placeholder:text-muted-foreground focus:bg-background focus:border-primary/20 focus:outline-none focus:ring-4 focus:ring-primary/5 transition-all"
+                    className="w-full rounded-[1.25rem] border border-[#E8E8E8] bg-secondary/40 py-3 pl-11 pr-4 text-sm font-medium placeholder:text-muted-foreground transition-all focus:border-primary/25 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary/8"
                   />
                 </div>
 
@@ -81,10 +96,10 @@ const MenuSection = () => {
                           window.scrollTo({ top: y, behavior: 'smooth' });
                         }
                       }}
-                      className={`whitespace-nowrap px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all duration-300 border-2 ${
+                      className={`whitespace-nowrap rounded-full border-2 px-6 py-2.5 text-xs font-extrabold uppercase tracking-wider transition-all duration-300 ${
                         currentCategory === cat 
-                          ? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105" 
-                          : "bg-white border-gray-100 text-gray-500 hover:border-primary/30 hover:text-primary"
+                          ? "scale-[1.02] border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/25" 
+                          : "border-[#E8E8E8] bg-white text-muted-foreground hover:border-primary/35 hover:text-primary"
                       }`}
                     >
                       {cat}
@@ -100,7 +115,7 @@ const MenuSection = () => {
             <div className="mb-8 flex items-end justify-between">
               <div>
                 <h2 className="text-2xl font-black text-foreground tracking-tighter leading-none">
-                  {currentCategory}
+                  {listTitle}
                 </h2>
                 <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mt-2">
                   {filtered.length} {filtered.length === 1 ? 'item' : 'items'} available
@@ -146,7 +161,8 @@ const MenuSection = () => {
                 </div>
                 <h3 className="text-xl font-black text-foreground tracking-tight">No matching dishes</h3>
                 <p className="text-sm text-muted-foreground mt-2 max-w-xs mx-auto font-medium">
-                  We couldn't find any "{searchQuery}" in {currentCategory}. Try exploring other categories!
+                  We couldn&apos;t find any &quot;{searchQuery}&quot;
+                  {q ? " across the menu." : ` in ${currentCategory}. Try another category!`}
                 </p>
                 <button 
                   onClick={() => { setSearchQuery(""); setActiveCategory(categories[0]); }}

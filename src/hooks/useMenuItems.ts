@@ -21,39 +21,85 @@ export const useMenuItems = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isValidSupabaseUrl = (value: string) => {
+    if (!value || value === 'https://xxxxx.supabase.co') return false;
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === 'https:' && parsed.hostname.length > 0;
+    } catch {
+      return false;
+    }
+  };
+
   const fetchMenuItems = async () => {
+    let fallbackTriggered = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const triggerFallback = (reason: string) => {
+      if (fallbackTriggered) return;
+      fallbackTriggered = true;
+      console.warn(`🍽️ Fallback triggered: ${reason}`);
+      useFallback();
+    };
+
     try {
       setLoading(true);
       setError(null);
-      console.log('🍽️ Fetching menu items from Supabase...');
+      console.warn('🍽️ Attempting fetch...');
 
-      // Check if Supabase is properly configured
+      // Strict environment validation
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const isDummy = !supabaseUrl || !supabaseKey || supabaseUrl === 'https://xxxxx.supabase.co';
+      const isDummy = !supabaseKey || !isValidSupabaseUrl((supabaseUrl || '').trim());
       
       if (isDummy) {
-        console.log('🍽️ Supabase not configured, using fallback menu data');
-        useFallback();
+        console.warn('🍽️ Supabase env invalid/missing. Skipping fetch.');
+        triggerFallback('invalid Supabase environment');
         return;
       }
 
-      const { data, error: fetchError } = await supabase
+      const fetchPromise = supabase
         .from('menu_items')
         .select('*')
         .eq('is_available', true)
         .order('category', { ascending: true })
         .order('name', { ascending: true });
 
-      if (fetchError || !data || data.length === 0) {
-        if (fetchError) {
-          console.error('❌ Supabase Fetch Error:', fetchError);
-        } else {
-          console.log('🍽️ Supabase returned no items, using fallback data');
-        }
-        useFallback();
+      const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) => {
+        timeoutId = setTimeout(() => {
+          console.warn('🍽️ Fetch timed out after 3s.');
+          triggerFallback('Supabase request timeout');
+          resolve({ data: null, error: new Error('Fetch timed out') });
+        }, 3000);
+      });
+
+      const { data, error: fetchError } = await Promise.race([
+        fetchPromise,
+        timeoutPromise,
+      ]);
+
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      if (fallbackTriggered) return;
+
+      if (fetchError) {
+        console.error('❌ Supabase Fetch Error:', fetchError);
+        triggerFallback('fetch error');
         return;
       }
+
+      if (!data || data.length === 0) {
+        console.warn('🍽️ Supabase returned empty data set. No items found in table.');
+        // Don't trigger fallback if we actually have a valid connection, just show empty state
+        setMenuItems([]);
+        setCategories([]);
+        setLoading(false);
+        return;
+      }
+
+      console.log(`✅ Successfully fetched ${data.length} menu items from Supabase.`);
 
       const items = (data || []).map(item => ({
         ...item,
@@ -66,11 +112,12 @@ export const useMenuItems = () => {
         new Set(items.map((item) => item.category))
       );
       setCategories(uniqueCategories);
-      console.log('🍽️ Menu loaded from Supabase:', items.length, 'items');
+      console.warn('🍽️ Menu loaded from Supabase:', items.length, 'items');
     } catch (err) {
       console.error('🍽️ Unexpected error fetching menu, using fallback data:', err);
-      useFallback();
+      triggerFallback('unexpected exception');
     } finally {
+      if (timeoutId) clearTimeout(timeoutId);
       setLoading(false);
     }
   };
@@ -89,7 +136,6 @@ export const useMenuItems = () => {
       updated_at: null,
     })));
     setCategories(fallbackCategories);
-    setLoading(false);
   };
 
   useEffect(() => {

@@ -2,52 +2,69 @@ import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 const topSellingData = [
-  { name: 'Paneer Tikka', sales: 120, gradient: 'from-purple-400 to-purple-600' },
-  { name: 'Veg Biryani', sales: 98, gradient: 'from-blue-400 to-blue-600' },
-  { name: 'Butter Chk', sales: 87, gradient: 'from-orange-400 to-orange-600' },
-  { name: 'Veg Manchurian', sales: 76, gradient: 'from-pink-400 to-pink-600' },
-  { name: 'Rolled Naan', sales: 65, gradient: 'from-green-400 to-green-600' },
+  { name: 'Paneer Tikka', sales: 120 },
+  { name: 'Veg Biryani', sales: 98 },
+  { name: 'Butter Chk', sales: 87 },
+  { name: 'Veg Manchurian', sales: 76 },
+  { name: 'Rolled Naan', sales: 65 },
 ];
 
-const colors = ['#c084fc', '#60a5fa', '#fb923c', '#ec4899', '#4ade80'];
+const colors = ['#00D2FF', '#9D50BB', '#34d399', '#fb7185', '#fbbf24'];
 
 const TopSellingItems: React.FC = () => {
   return (
-    <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
-      <h3 className="text-lg font-bold text-slate-900 mb-6">Top Selling Items</h3>
+    <div className="w-full space-y-8">
+      <div className="h-[300px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={topSellingData}
+            layout="vertical"
+            margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(255,255,255,0.05)" />
+            <XAxis type="number" hide />
+            <YAxis 
+              dataKey="name" 
+              type="category" 
+              axisLine={false} 
+              tickLine={false} 
+              tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }}
+              width={100} 
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: '#0B0E14',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '1rem',
+                fontSize: '10px',
+                fontWeight: 'bold',
+                textTransform: 'uppercase'
+              }}
+              cursor={{ fill: 'rgba(255,255,255,0.02)' }}
+            />
+            <Bar dataKey="sales" radius={[0, 10, 10, 0]} barSize={20}>
+              {topSellingData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={colors[index]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
 
-      <ResponsiveContainer width="100%" height={280}>
-        <BarChart
-          data={topSellingData}
-          layout="vertical"
-          margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis type="number" stroke="#94a3b8" />
-          <YAxis dataKey="name" type="category" stroke="#94a3b8" width={95} />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: '12px',
-            }}
-          />
-          <Bar dataKey="sales" fill="#6366f1" radius={[0, 12, 12, 0]}>
-            {topSellingData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={colors[index]} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-
-      <div className="mt-6 space-y-2">
+      <div className="space-y-3 px-2">
         {topSellingData.map((item, index) => (
-          <div key={item.name} className="flex items-center justify-between text-sm">
-            <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full`} style={{ backgroundColor: colors[index] }} />
-              <span className="text-slate-600">{item.name}</span>
+          <div key={item.name} className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5 group hover:bg-white/10 transition-all duration-300">
+            <div className="flex items-center gap-4">
+              <div className="w-2 h-8 rounded-full transition-all duration-500 group-hover:h-10" style={{ backgroundColor: colors[index], boxShadow: `0 0 15px ${colors[index]}44` }} />
+              <div className="flex flex-col">
+                <span className="text-[11px] font-black text-white uppercase tracking-widest">{item.name}</span>
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter mt-0.5">Category Top Performer</span>
+              </div>
             </div>
-            <span className="font-semibold text-slate-900">{item.sales} sold</span>
+            <div className="text-right">
+              <span className="text-sm font-black text-white tracking-tighter">{item.sales}</span>
+              <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest mt-0.5">Units Sold</p>
+            </div>
           </div>
         ))}
       </div>

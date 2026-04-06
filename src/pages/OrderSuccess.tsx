@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle, Clock, MapPin, Phone, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 const OrderSuccess: React.FC = () => {
   const location = useLocation();
@@ -11,6 +12,12 @@ const OrderSuccess: React.FC = () => {
   const orderId = location.state?.orderId;
 
   useEffect(() => {
+    // Show the success toast when the page loads
+    toast.success("Order placed successfully!", {
+      description: "Your delicious meal is being prepared.",
+      duration: 5000,
+    });
+
     const timer = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {

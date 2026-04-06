@@ -2,7 +2,7 @@ import { MapPin, Clock, Phone, Navigation } from "lucide-react";
 
 const LocationSection = () => {
   return (
-    <section className="py-20 bg-charcoal text-white overflow-hidden" id="location">
+    <section className="scroll-mt-28 py-20 bg-charcoal text-white overflow-hidden md:scroll-mt-24" id="location">
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           {/* Text Content */}

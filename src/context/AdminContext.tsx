@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '@/lib/supabase';
 
 export interface OrderItem {
   id: string;
@@ -11,10 +12,11 @@ export interface Order {
   id: string;
   customerName: string;
   customerPhone: string;
+  customerAddress?: string;
   items: OrderItem[];
   total: number;
-  type: 'Delivery' | 'Takeaway';
-  status: 'New' | 'Accepted' | 'Preparing' | 'Dispatched' | 'Ready for Pickup';
+  type: 'delivery' | 'takeaway';
+  status: 'new' | 'accepted' | 'preparing' | 'ready' | 'dispatched';
   createdAt: Date;
   isNew: boolean;
 }
@@ -38,6 +40,7 @@ interface AdminContextType {
   orders: Order[];
   customers: Customer[];
   revenueData: RevenueData[];
+  loading: boolean;
   addOrder: (order: Omit<Order, 'id' | 'createdAt' | 'isNew'>) => void;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   getTotalRevenue: (period: string) => number;
@@ -59,74 +62,117 @@ interface AdminProviderProps {
 }
 
 export const AdminProvider: React.FC<AdminProviderProps> = ({ children }) => {
-  const [orders, setOrders] = useState<Order[]>([
-    {
-      id: '1001',
-      customerName: 'Rahul Sharma',
-      customerPhone: '098-765-4321',
-      items: [
-        { id: '1', name: 'Butter Chicken Rolls', quantity: 2, price: 15.99 },
-        { id: '2', name: 'Paneer Handi', quantity: 1, price: 12.99 },
-      ],
-      total: 44.97,
-      type: 'Delivery',
-      status: 'New',
-      createdAt: new Date(Date.now() - 5 * 60 * 1000),
-      isNew: true,
-    },
-    {
-      id: '1002',
-      customerName: 'Priya Kumari',
-      customerPhone: '987-654-3210',
-      items: [
-        { id: '3', name: 'Veg Manchurian', quantity: 1, price: 11.99 },
-        { id: '4', name: 'Garlic Naan', quantity: 2, price: 3.99 },
-      ],
-      total: 19.97,
-      type: 'Takeaway',
-      status: 'Accepted',
-      createdAt: new Date(Date.now() - 10 * 60 * 1000),
-      isNew: false,
-    },
-    {
-      id: '1003',
-      customerName: 'Amit Singh',
-      customerPhone: '123-456-7890',
-      items: [
-        { id: '5', name: 'Paneer Tikka Rolls', quantity: 1, price: 13.99 },
-      ],
-      total: 13.99,
-      type: 'Delivery',
-      status: 'Preparing',
-      createdAt: new Date(Date.now() - 15 * 60 * 1000),
-      isNew: false,
-    },
-  ]);
-
-  const [customers, setCustomers] = useState<Customer[]>([
-    {
-      id: '1',
-      name: 'John Doe',
-      phone: '123-456-7890',
-      totalOrders: 5,
-      lastOrdered: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-    },
-    {
-      id: '2',
-      name: 'Jane Smith',
-      phone: '987-654-3210',
-      totalOrders: 3,
-      lastOrdered: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-    },
-  ]);
-
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [revenueData, setRevenueData] = useState<RevenueData[]>([
-    { period: 'This Week', revenue: 1250.50, orders: 45, growth: 12 },
-    { period: 'This Month', revenue: 5200.75, orders: 180, growth: 8 },
-    { period: 'Financial Year', revenue: 65000.00, orders: 2200, growth: 15 },
+    { period: 'This Week', revenue: 0, orders: 0, growth: 0 },
+    { period: 'This Month', revenue: 0, orders: 0, growth: 0 },
+    { period: 'Financial Year', revenue: 0, orders: 0, growth: 0 },
   ]);
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setLoading(true);
+        console.log('🔍 AdminContext: Fetching real-time orders from Supabase...');
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          const formattedOrders: Order[] = data.map(o => ({
+            id: o.id,
+            customerName: o.customer_name,
+            customerPhone: o.customer_phone,
+            customerAddress: o.customer_address,
+            items: o.items || [],
+            total: o.total_amount,
+            type: o.order_type as 'delivery' | 'takeaway',
+            status: o.status as Order['status'],
+            createdAt: new Date(o.created_at),
+            isNew: o.status === 'new',
+          }));
+          setOrders(formattedOrders);
+          
+          const totalRev = formattedOrders.reduce((acc, o) => acc + o.total, 0);
+          setRevenueData([
+            { period: 'This Week', revenue: totalRev, orders: formattedOrders.length, growth: 0 },
+            { period: 'This Month', revenue: totalRev, orders: formattedOrders.length, growth: 0 },
+            { period: 'Financial Year', revenue: totalRev, orders: formattedOrders.length, growth: 0 },
+          ]);
+        } else {
+          // Fallback empty array -> trigger mock
+          throw new Error('Empty or no data');
+        }
+      } catch (err) {
+        console.error('❌ AdminContext: Error fetching orders or no data available. Loading Mock Data...', err);
+        // Task 1: Fallback Mock Data
+        const mockOrders: Order[] = [
+          {
+            id: 'mock-1',
+            customerName: 'Siddhant Mock',
+            customerPhone: '9321200000',
+            customerAddress: '123 Fake St, London',
+            items: [{ id: 'menu-1', name: 'Butter Chicken', quantity: 2, price: 15.99 }],
+            total: 31.98,
+            type: 'delivery',
+            status: 'new',
+            createdAt: new Date(),
+            isNew: true,
+          }
+        ];
+        setOrders(mockOrders);
+        const totalRev = mockOrders.reduce((acc, o) => acc + o.total, 0);
+        setRevenueData([
+            { period: 'This Week', revenue: totalRev, orders: mockOrders.length, growth: 0 },
+            { period: 'This Month', revenue: totalRev, orders: mockOrders.length, growth: 0 },
+            { period: 'Financial Year', revenue: totalRev, orders: mockOrders.length, growth: 0 },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+
+    // Task 2: Robust Realtime Sync
+    const channel = supabase
+      .channel('admin-orders-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const newRow = payload.new as any;
+          const newOrder: Order = {
+            id: newRow.id,
+            customerName: newRow.customer_name,
+            customerPhone: newRow.customer_phone,
+            customerAddress: newRow.customer_address,
+            items: newRow.items || [],
+            total: newRow.total_amount,
+            type: newRow.order_type as 'delivery' | 'takeaway',
+            status: newRow.status as Order['status'],
+            createdAt: new Date(newRow.created_at),
+            isNew: newRow.status === 'new',
+          };
+          setOrders(prev => [newOrder, ...prev]);
+        } else if (payload.eventType === 'UPDATE') {
+          setOrders(prev => prev.map(o => o.id === payload.new.id ? { ...o, status: payload.new.status, isNew: payload.new.status === 'new' } : o));
+        } else if (payload.eventType === 'DELETE') {
+          setOrders(prev => prev.filter(o => o.id !== payload.old.id));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const addOrder = (newOrder: Omit<Order, 'id' | 'createdAt' | 'isNew'>) => {
+    // In real app, this would be an API call to Supabase
     const order: Order = {
       ...newOrder,
       id: Date.now().toString(),
@@ -136,12 +182,17 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children }) => {
     setOrders(prev => [order, ...prev]);
   };
 
-  const updateOrderStatus = (orderId: string, status: Order['status']) => {
-    setOrders(prev => prev.map(order =>
-      order.id === orderId
-        ? { ...order, status, isNew: status === 'New' ? true : false }
-        : order
-    ));
+  const updateOrderStatus = async (orderId: string, status: Order['status']) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('id', orderId);
+      
+      if (error) throw error;
+    } catch (err) {
+      console.error('❌ AdminContext: Update status failed:', err);
+    }
   };
 
   const getTotalRevenue = (period: string) => {
@@ -154,61 +205,12 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children }) => {
     return data ? data.orders : 0;
   };
 
-  // Simulate new orders every 10 seconds for demo
-  useEffect(() => {
-    const menuItems = [
-      { name: 'Butter Chicken Rolls', price: 15.99 },
-      { name: 'Paneer Handi', price: 12.99 },
-      { name: 'Veg Manchurian', price: 11.99 },
-      { name: 'Paneer Tikka Rolls', price: 13.99 },
-      { name: 'Garlic Naan', price: 3.99 },
-      { name: 'Chicken Biryani', price: 14.99 },
-      { name: 'Veg Biryani', price: 10.99 },
-      { name: 'Tandoori Chicken', price: 16.99 },
-      { name: 'Chilli Garlic Naan', price: 4.99 },
-    ];
-
-    const customerNames = [
-      'Rahul Sharma', 'Priya Kumari', 'Amit Singh', 'Divya Patel', 
-      'Arjun Verma', 'Sneha Gupta', 'Vikram Nair', 'Anjali Singh',
-      'Rohan Das', 'Neha Reddy', 'Karan Malhotra', 'Pooja Mishra'
-    ];
-
-    const interval = setInterval(() => {
-      const selectedItems = Array.from(
-        { length: Math.floor(Math.random() * 3) + 1 },
-        () => {
-          const item = menuItems[Math.floor(Math.random() * menuItems.length)];
-          return {
-            id: Math.random().toString(),
-            name: item.name,
-            quantity: Math.floor(Math.random() * 3) + 1,
-            price: item.price,
-          };
-        }
-      );
-
-      const total = selectedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-      const mockOrder: Omit<Order, 'id' | 'createdAt' | 'isNew'> = {
-        customerName: customerNames[Math.floor(Math.random() * customerNames.length)],
-        customerPhone: `${9}${Math.floor(Math.random() * 900) + 10}-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
-        items: selectedItems,
-        total: Math.round(total * 100) / 100,
-        type: Math.random() > 0.5 ? 'Delivery' : 'Takeaway',
-        status: 'New',
-      };
-      addOrder(mockOrder);
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   return (
     <AdminContext.Provider value={{
       orders,
       customers,
       revenueData,
+      loading,
       addOrder,
       updateOrderStatus,
       getTotalRevenue,

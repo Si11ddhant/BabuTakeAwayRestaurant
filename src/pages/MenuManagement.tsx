@@ -172,7 +172,7 @@ const MenuManagement: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Price (₹)</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Price (£)</Label>
                     <Input 
                       required 
                       type="number"
@@ -329,7 +329,7 @@ const MenuManagement: React.FC = () => {
                     </span>
                   </td>
                   <td className="py-6 px-8">
-                    <span className="text-base font-black text-slate-900 tracking-tighter">₹{item.price}</span>
+                    <span className="text-base font-black text-slate-900 tracking-tighter">£{item.price.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</span>
                   </td>
                   <td className="py-6 px-8">
                     <div className={cn(

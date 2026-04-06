@@ -101,7 +101,8 @@ CREATE TABLE IF NOT EXISTS public.orders (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
   created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  updated_by UUID REFERENCES auth.users(id) ON DELETE SET NULL
+  updated_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  order_payload JSONB
 );
 
 -- Enable RLS for orders
@@ -120,10 +121,20 @@ CREATE POLICY "Admins can view all orders"
     (SELECT role FROM public.users WHERE id = auth.uid()) = 'admin'
   );
 
+CREATE POLICY "Anyone can view guest orders"
+  ON public.orders
+  FOR SELECT
+  USING (customer_id IS NULL);
+
 CREATE POLICY "Customers can insert own orders"
   ON public.orders
   FOR INSERT
   WITH CHECK (customer_id = auth.uid());
+
+CREATE POLICY "Anyone can place guest orders"
+  ON public.orders
+  FOR INSERT
+  WITH CHECK (customer_id IS NULL);
 
 CREATE POLICY "Admins can update orders"
   ON public.orders
@@ -171,6 +182,8 @@ CREATE POLICY "Only admins can update customers"
 CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DESC);
+
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS order_payload JSONB;
 CREATE INDEX IF NOT EXISTS idx_menu_items_category ON public.menu_items(category);
 CREATE INDEX IF NOT EXISTS idx_customers_phone ON public.customers(phone);
 

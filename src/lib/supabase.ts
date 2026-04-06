@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
 const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+const PLACEHOLDER_URL = 'https://xxxxx.supabase.co';
 
 // Security: Only log presence, not the full values in non-dev environments
 if (import.meta.env.DEV) {
@@ -11,51 +12,86 @@ if (import.meta.env.DEV) {
   });
 }
 
+const isValidSupabaseUrl = (value: string) => {
+  if (!value || value === PLACEHOLDER_URL) return false;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' && parsed.hostname.length > 0;
+  } catch {
+    return false;
+  }
+};
+
 // Check if Supabase is properly configured
-const isConfigured = supabaseUrl && 
-                    supabaseAnonKey && 
-                    supabaseUrl !== 'https://xxxxx.supabase.co';
+const isConfigured = Boolean(supabaseAnonKey) && isValidSupabaseUrl(supabaseUrl);
 
 if (!isConfigured) {
-  console.log('🔧 Supabase not configured - app will use fallback data');
+  console.error(
+    '\n🚨 SUPABASE CONNECTION ERROR 🚨\n' +
+    'The application cannot connect to Supabase because the environment variables are missing or invalid.\n' +
+    'Please check your .env.local file. You need:\n' +
+    'VITE_SUPABASE_URL=...\n' +
+    'VITE_SUPABASE_ANON_KEY=...\n' +
+    'The app is forcibly switching to Fallback/Mock Mode!\n'
+  );
 }
 
-// Create a dummy client if not configured to prevent errors
-const createDummyClient = () => ({
-  from: () => ({
-    select: () => ({
-      eq: () => ({
-        order: () => ({
-          order: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') })
-        })
-      })
+const createDummyClient = () => {
+  const result = Promise.resolve({ data: null, error: new Error('Supabase not configured') });
+  const builder: any = {
+    select: () => builder,
+    insert: () => builder,
+    update: () => builder,
+    delete: () => builder,
+    upsert: () => builder,
+    eq: () => builder,
+    neq: () => builder,
+    gt: () => builder,
+    gte: () => builder,
+    lt: () => builder,
+    lte: () => builder,
+    like: () => builder,
+    ilike: () => builder,
+    in: () => builder,
+    contains: () => builder,
+    order: () => builder,
+    limit: () => builder,
+    maybeSingle: () => result,
+    single: () => result,
+    then: result.then.bind(result),
+    catch: result.catch.bind(result),
+    finally: result.finally.bind(result),
+  };
+
+  return {
+    from: () => builder,
+    channel: () => ({
+      on: function () { return this; },
+      subscribe: () => ({ unsubscribe: () => undefined }),
     }),
-    insert: () => ({
-      select: () => ({
-        single: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') })
-      })
-    })
-  }),
-  // Add other dummy methods as needed
-});
+    removeChannel: () => undefined,
+    auth: {
+      getSession: async () => ({ data: { session: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => undefined } } }),
+      signInWithPassword: async () => ({ data: null, error: new Error('Supabase not configured') }),
+      signOut: async () => ({ error: null }),
+    },
+  };
+};
 
 export const supabase = isConfigured ? (() => {
-  // Ensure URL is valid to prevent silent failures
   try {
-    new URL(supabaseUrl);
-  } catch (e) {
-    throw new Error('Invalid VITE_SUPABASE_URL. It must be a full URL (e.g., https://xyz.supabase.co)');
+    return createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+        storage: window.localStorage,
+        storageKey: `sb-${new URL(supabaseUrl).hostname}-auth-token`,
+      }
+    });
+  } catch (error) {
+    console.warn('🔧 Failed to create Supabase client, using fallback-safe client', error);
+    return createDummyClient();
   }
-
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-      storage: window.localStorage,
-      // Explicitly set the lock timeout to avoid the error when multiple tabs are open
-      // or when the lock is stolen by another request
-      storageKey: `sb-${new URL(supabaseUrl).hostname}-auth-token`,
-    }
-  });
 })() : createDummyClient();

@@ -24,13 +24,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Check initial session
     const checkSession = async () => {
       try {
+        console.log('🔍 AuthContext: Checking initial session...');
         const { data: { session: authSession }, error } = await supabase.auth.getSession();
         
+        if (error) {
+          console.error('❌ AuthContext: getSession error:', error.message);
+          throw error;
+        }
+
         if (authSession) {
+          console.log('✅ AuthContext: Session found for user:', authSession.user.email);
           setSession(authSession);
           setUser(authSession.user);
           
           // Fetch user role from users table
+          console.log('🔍 AuthContext: Fetching role for user:', authSession.user.id);
           const { data: userData, error: userError } = await supabase
             .from('users')
             .select('role')
@@ -38,12 +46,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .single();
           
           if (userData) {
+            console.log('✅ AuthContext: Role found:', userData.role);
             setRole(userData.role as 'admin' | 'customer');
+          } else {
+            console.warn('⚠️ AuthContext: No role found in users table, defaulting to customer');
           }
+        } else {
+          console.log('ℹ️ AuthContext: No active session found');
         }
       } catch (error) {
-        console.error('Error checking session:', error);
+        console.error('❌ AuthContext: Fatal initialization error:', error);
       } finally {
+        console.log('🏁 AuthContext: Initialization complete, setting loading=false');
         setLoading(false);
       }
     };

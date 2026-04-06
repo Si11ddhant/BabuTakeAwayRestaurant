@@ -1,526 +1,735 @@
-import { X, Plus, Minus, Trash2, Tag, ShoppingBag, ArrowRight, Sparkles, Loader2, UtensilsCrossed, MapPin, Phone, User, AlertCircle, CheckCircle } from "lucide-react";
+import {
+  X,
+  Plus,
+  Minus,
+  Trash2,
+  Tag,
+  ShoppingBag,
+  ArrowRight,
+  Sparkles,
+  Loader2,
+  UtensilsCrossed,
+  MapPin,
+  Phone,
+  User,
+  AlertCircle,
+  CheckCircle,
+  ShieldCheck,
+  ChevronLeft,
+} from "lucide-react";
 import { useCart } from "@/context/CartContext";
-import { useState, useEffect } from "react";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { Drawer, DrawerContent } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import emptyCartImg from "@/assets/empty-cart.png";
 import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { menuItems } from "@/data/menuData";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+type CheckoutPhase = "review" | "information";
+
+const springTransition = { type: "spring" as const, damping: 32, stiffness: 380 };
+
+const vibrate = () => {
+  try {
+    navigator.vibrate?.(10);
+  } catch {
+    /* noop */
+  }
+};
 
 const CartSidebar = () => {
   const {
-    items, isCartOpen, setIsCartOpen, updateQuantity, removeItem,
-    subtotal, tax, deliveryFee, promoDiscount, total, mode,
-    promoCode, setPromoCode, applyPromo, promoError, clearCart,
-    isLoading, addItem
+    items,
+    isCartOpen,
+    setIsCartOpen,
+    updateQuantity,
+    removeItem,
+    subtotal,
+    tax,
+    deliveryFee,
+    promoDiscount,
+    total,
+    mode,
+    setMode,
+    promoCode,
+    setPromoCode,
+    applyPromo,
+    promoError,
+    clearCart,
+    isLoading,
+    addItem,
   } = useCart();
 
   const [isMobile, setIsMobile] = useState(false);
-  const [currentStep, setCurrentStep] = useState<'cart' | 'checkout'>('cart');
+  const [phase, setPhase] = useState<CheckoutPhase>("review");
   const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    address: '',
+    name: "",
+    phone: "",
+    address: "",
   });
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-  const [orderError, setOrderError] = useState('');
-  const [orderSuccess, setOrderSuccess] = useState(false);
+  const [orderError, setOrderError] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Reset step when cart closes
   useEffect(() => {
     if (!isCartOpen) {
-      setTimeout(() => setCurrentStep('cart'), 300);
+      const t = window.setTimeout(() => setPhase("review"), 280);
+      return () => window.clearTimeout(t);
     }
   }, [isCartOpen]);
 
-  // Function to handle moving to checkout
-  const handleProceedToCheckout = () => {
-    setCurrentStep('checkout');
-  };
+  const phoneDigits = formData.phone.replace(/\D/g, "");
+  const validation = useMemo(() => {
+    const nameOk = formData.name.trim().length >= 2;
+    const phoneOk = phoneDigits.length >= 10;
+    const addressOk = mode === "takeaway" || formData.address.trim().length >= 8;
+    const cartOk = items.length > 0;
+    return {
+      nameOk,
+      phoneOk,
+      addressOk,
+      cartOk,
+      allOk: nameOk && phoneOk && addressOk && cartOk,
+    };
+  }, [formData.name, formData.address, phoneDigits.length, mode, items.length]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const validateForm = () => {
-    if (!formData.name.trim()) {
-      setOrderError('Please enter your name');
-      return false;
-    }
-    if (!formData.phone.trim() || formData.phone.length < 10) {
-      setOrderError('Please enter a valid phone number');
-      return false;
-    }
-    if (mode === 'delivery' && !formData.address.trim()) {
-      setOrderError('Please enter your delivery address');
-      return false;
-    }
-    return true;
-  };
+  const goPhase = useCallback((p: CheckoutPhase) => {
+    vibrate();
+    setPhase(p);
+    setOrderError("");
+  }, []);
+
+  const buildOrderPayload = useCallback(() => {
+    const itemized = items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      is_veg: item.isVeg,
+    }));
+    return {
+      version: 1,
+      placed_at: new Date().toISOString(),
+      customer: {
+        name: formData.name.trim(),
+        phone: formData.phone.trim(),
+        address: mode === "delivery" ? formData.address.trim() : null,
+      },
+      order_type: mode,
+      items: itemized,
+      totals: {
+        subtotal,
+        gst: tax,
+        delivery_fee: deliveryFee,
+        promo_discount: promoDiscount,
+        total,
+      },
+      promo_code: promoCode.trim() || null,
+    };
+  }, [items, formData, mode, subtotal, tax, deliveryFee, promoDiscount, total, promoCode]);
 
   const handlePlaceOrder = async () => {
-    setOrderError('');
-    
-    if (!validateForm()) return;
+    setOrderError("");
+    if (!validation.allOk) {
+      setOrderError("Complete all required fields to place your order.");
+      return;
+    }
 
     setIsPlacingOrder(true);
+    const itemized = items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+    }));
+    const orderPayload = buildOrderPayload();
 
     try {
-      // Create guest order record in Supabase
-      const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          customer_name: formData.name,
-          customer_phone: formData.phone,
-          customer_address: formData.address,
-          order_type: mode,
-          total_amount: total,
-          status: 'new',
-          items: items.map(item => ({
-            id: item.id,
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-          })),
-        })
+      const { data: sessionData } = await supabase.auth.getSession();
+      const customerId = sessionData.session?.user?.id || null;
+
+      const baseRow = {
+        customer_id: customerId,
+        customer_name: formData.name.trim(),
+        customer_phone: formData.phone.trim(),
+        customer_address: mode === "delivery" ? formData.address.trim() : "",
+        order_type: mode,
+        total_amount: total,
+        status: "new",
+        items: itemized,
+        order_payload: orderPayload,
+      };
+      console.log('🚀 Step 1: Initiating order placement...', baseRow);
+
+      const insertStart = Date.now();
+      let { data: orderData, error: insertError } = await supabase
+        .from("orders")
+        .insert(baseRow)
         .select()
-        .single();
+        .maybeSingle();
+      const insertEnd = Date.now();
 
-      if (orderError) throw orderError;
+      console.log(`⏱️ Step 2: Supabase insert took ${insertEnd - insertStart}ms`);
 
-      setOrderSuccess(true);
+      if (insertError) {
+        console.error('❌ Step 2 ERROR: Supabase insertion error:', {
+          code: insertError.code,
+          message: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint
+        });
+      } else {
+        console.log('✅ Step 2 SUCCESS: Order placed!', orderData);
+      }
+
+      const noPayloadMsg =
+        !!insertError &&
+        (/order_payload|schema cache/i.test(insertError.message ?? "") ||
+          insertError.code === "PGRST204" ||
+          insertError.message?.includes('order_payload'));
+
+      if (insertError && noPayloadMsg) {
+        console.warn('⚠️ Step 3: Retrying without order_payload due to potential schema mismatch...');
+
+        const retryStart = Date.now();
+        const retry = await supabase
+          .from("orders")
+          .insert({
+            customer_name: baseRow.customer_name,
+            customer_phone: baseRow.customer_phone,
+            customer_address: baseRow.customer_address,
+            order_type: baseRow.order_type,
+            total_amount: baseRow.total_amount,
+            status: baseRow.status,
+            items: baseRow.items,
+          })
+          .select()
+          .single();
+        const retryEnd = Date.now();
+
+        console.log(`⏱️ Step 3: Supabase retry took ${retryEnd - retryStart}ms`);
+
+        if (retry.error) {
+          console.error('❌ Step 3 ERROR: Supabase retry failed:', retry.error);
+          throw retry.error;
+        }
+
+        console.log('✅ Step 3 SUCCESS: Order placed (retry)!', retry.data);
+
+        clearCart();
+        setIsCartOpen(false);
+        navigate("/order-success", { state: { orderId: retry.data?.id || "guest-order" } });
+        return;
+      }
+
+      if (insertError) {
+        // Identify PGRST116 explicitly if maybeSingle doesn't bypass it, though maybeSingle fixes PGRST116 to null
+        if (insertError.code === "PGRST116") {
+          console.warn("Row inserted but hidden by RLS rules (PGRST116)");
+        } else {
+          throw insertError;
+        }
+      }
+
       clearCart();
       setIsCartOpen(false);
-
-      // Redirect to success page
-      setTimeout(() => {
-        navigate('/order-success', { state: { orderId: orderData.id } });
-      }, 1000);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to place order';
+      navigate("/order-success", { state: { orderId: orderData?.id || "guest-order" } });
+    } catch (err: any) {
+      const dbError = err?.message || err?.details || "";
+      const errorMessage = dbError ? `Failed to place order: ${dbError}` : "Failed to place order";
+      console.error('💥 Fatal order placement error:', err);
       setOrderError(errorMessage);
+      // Ensure we log the error specifically for debugging as requested
+      console.log('Order Error details:', {
+        message: errorMessage,
+        formData,
+        mode,
+        itemsCount: items.length,
+        total
+      });
+    } finally {
       setIsPlacingOrder(false);
     }
   };
 
-  // Simple recommendation logic: show top 3 items not in cart
   const recommendations = menuItems
-    .filter(menuItem => !items.find(cartItem => cartItem.id === menuItem.id))
+    .filter((menuItem) => !items.find((cartItem) => cartItem.id === menuItem.id))
     .slice(0, 3);
+
+  const phaseIndex = phase === "review" ? 1 : 2;
 
   if (!isCartOpen) return null;
 
   const cartContent = (
-    <div className="flex flex-col h-full bg-background relative overflow-hidden">
-      {/* Loading Overlay */}
+    <div className="flex h-full flex-col overflow-hidden bg-[#FFFFFF] relative">
       {isLoading && (
-        <div className="absolute inset-0 z-[60] bg-background/60 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
-          <div className="bg-card p-6 rounded-3xl shadow-2xl border border-border/50 flex flex-col items-center gap-4">
+        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-white/70 backdrop-blur-sm">
+          <div className="bento-card flex flex-col items-center gap-4 p-6">
             <div className="relative">
-              <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-              <ShoppingBag className="w-5 h-5 text-primary absolute inset-0 m-auto animate-pulse" />
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+              <ShoppingBag className="text-primary absolute inset-0 m-auto h-5 w-5 animate-pulse" />
             </div>
-            <span className="text-sm font-bold text-foreground tracking-tight">Updating your cart...</span>
+            <span className="text-sm font-extrabold tracking-tight text-foreground">Updating cart…</span>
           </div>
         </div>
       )}
 
-      {/* Header with Step Indicator */}
-      <div className="px-6 pt-6 pb-4 border-b border-border/50 bg-card/50 backdrop-blur-md sticky top-0 z-10">
-        <div className="flex items-center justify-between mb-6">
+      <div className="sticky top-0 z-10 border-b border-[#E8E8E8] bg-white/95 px-5 pt-5 pb-4 backdrop-blur-md">
+        <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center shadow-inner">
-              <ShoppingBag className="w-6 h-6 text-primary" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-[1rem] bg-primary/10 shadow-inner">
+              <ShoppingBag className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h2 className="text-xl font-black tracking-tight text-foreground leading-none">Your Cart</h2>
-              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-1.5">
-                {items.length} {items.length === 1 ? 'item' : 'items'} selected
+              <h2 className="text-xl font-extrabold leading-none tracking-tight text-[#1C1C1C]">
+                Your cart
+              </h2>
+              <p className="mt-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                {items.length} {items.length === 1 ? "item" : "items"}
               </p>
             </div>
           </div>
-          <button 
-            onClick={() => setIsCartOpen(false)} 
-            className="p-3 rounded-2xl hover:bg-secondary/80 transition-all duration-300 group active:scale-90"
+          <button
+            type="button"
+            onClick={() => {
+              vibrate();
+              setIsCartOpen(false);
+            }}
+            className="tap-haptic rounded-[1rem] p-3 transition-colors hover:bg-secondary"
             aria-label="Close cart"
           >
-            <X className="w-5 h-5 text-muted-foreground group-hover:rotate-90 transition-transform duration-300" />
+            <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
-        {/* Step Progress */}
-        <div className="flex items-center gap-2 px-1">
-          <div className="flex-1 flex items-center gap-2">
-            <div className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${currentStep === 'cart' || currentStep === 'checkout' ? 'bg-primary' : 'bg-secondary'}`} />
-            <div className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${currentStep === 'checkout' ? 'bg-primary' : 'bg-secondary'}`} />
-          </div>
-          <span className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground min-w-[60px] text-right">
-            Step {currentStep === 'cart' ? '1' : '2'} of 2
+        <div className="flex items-center gap-2 px-0.5">
+          {([1, 2] as const).map((step) => (
+            <div key={step} className="flex flex-1 items-center gap-2">
+              <div
+                className={cn(
+                  "h-1.5 flex-1 rounded-full transition-all duration-500",
+                  phaseIndex >= step ? "bg-primary" : "bg-secondary"
+                )}
+              />
+            </div>
+          ))}
+          <span className="min-w-[72px] text-right text-[10px] font-extrabold uppercase tracking-tighter text-muted-foreground">
+            Step {phaseIndex} / 2
           </span>
         </div>
       </div>
 
-      {/* Content Area */}
       {items.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center px-8 text-center space-y-8 overflow-y-auto custom-scrollbar">
-          <div className="relative group">
-            <div className="absolute inset-0 bg-primary/10 rounded-full blur-3xl group-hover:bg-primary/20 transition-colors duration-500" />
-            <div className="relative transform group-hover:scale-105 transition-transform duration-500">
-              <img 
-                src={emptyCartImg} 
-                alt="Empty cart" 
-                className="w-56 h-56 object-contain opacity-90 drop-shadow-2xl" 
-                loading="lazy" 
-              />
-              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-white px-4 py-2 rounded-full shadow-lg border border-border/50 flex items-center gap-2 whitespace-nowrap">
-                <UtensilsCrossed className="w-4 h-4 text-primary" />
-                <span className="text-xs font-bold text-foreground">Nothing here yet</span>
-              </div>
-            </div>
+        <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-8 text-center custom-scrollbar">
+          <div className="relative group mb-8">
+            <div className="absolute inset-0 rounded-full bg-primary/10 blur-3xl transition-colors group-hover:bg-primary/15" />
+            <img
+              src={emptyCartImg}
+              alt=""
+              className="relative h-52 w-52 object-contain opacity-95 drop-shadow-2xl"
+              loading="lazy"
+            />
           </div>
-          <div className="space-y-3 max-w-[280px]">
-            <p className="text-2xl font-black text-foreground tracking-tight">Hungry?</p>
-            <p className="text-sm text-muted-foreground leading-relaxed font-medium">
-              Your cart is waiting for some delicious treats. Start adding items from our menu!
-            </p>
-          </div>
-          
-          <button 
-            onClick={() => setIsCartOpen(false)} 
-            className="btn-primary-glow w-full py-4 rounded-2xl flex items-center justify-center gap-3 group text-base font-black"
+          <p className="text-2xl font-extrabold tracking-tight text-[#1C1C1C]">Hungry?</p>
+          <p className="mt-3 max-w-[280px] text-sm font-medium leading-relaxed text-muted-foreground">
+            Add dishes from the menu — your cart will slide open here.
+          </p>
+          <button
+            type="button"
+            onClick={() => setIsCartOpen(false)}
+            className="btn-primary-glow mt-8 flex w-full max-w-xs items-center justify-center gap-2 rounded-[1.25rem] py-4 text-sm font-extrabold"
           >
-            Browse Menu
-            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            Browse menu
+            <ArrowRight className="h-5 w-5" />
           </button>
-
-          <div className="w-full pt-8 border-t border-border/50">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-5">Quick Selection</p>
-            <div className="grid grid-cols-2 gap-3">
-              {['Starters', 'Main Course', 'Biryani', 'Desserts'].map(cat => (
-                <button 
-                  key={cat}
-                  onClick={() => setIsCartOpen(false)}
-                  className="p-4 bg-card rounded-2xl text-xs font-black text-foreground hover:bg-primary hover:text-white transition-all border border-border/50 hover:border-primary shadow-sm active:scale-95"
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6">
-            {currentStep === 'cart' ? (
-              <div className="space-y-6">
-                {/* Mode Selector */}
-                <div className="p-1.5 bg-secondary/50 rounded-2xl flex items-center gap-1 border border-border/50">
-                  <button 
-                    onClick={() => setMode('delivery')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black transition-all ${mode === 'delivery' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                  >
-                    <MapPin className="w-4 h-4" />
-                    DELIVERY
-                  </button>
-                  <button 
-                    onClick={() => setMode('takeaway')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black transition-all ${mode === 'takeaway' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                  >
-                    <ShoppingBag className="w-4 h-4" />
-                    TAKEAWAY
-                  </button>
-                </div>
-
-                {/* Cart Items */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Order Items</span>
-                    <button onClick={clearCart} className="text-[10px] font-black uppercase tracking-widest text-destructive hover:opacity-80 transition-opacity flex items-center gap-1.5">
-                      <Trash2 className="w-3 h-3" />
-                      Clear All
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 custom-scrollbar">
+            <AnimatePresence mode="wait">
+              {phase === "review" && (
+                <motion.div
+                  key="review"
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 12 }}
+                  transition={springTransition}
+                  className="space-y-6"
+                >
+                  <div className="flex gap-1 rounded-[1.25rem] border border-[#E8E8E8] bg-secondary/40 p-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        vibrate();
+                        setMode("delivery");
+                      }}
+                      className={cn(
+                        "flex flex-1 items-center justify-center gap-2 rounded-[1rem] py-3 text-xs font-extrabold uppercase transition-all tap-haptic",
+                        mode === "delivery"
+                          ? "bg-white text-primary shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <MapPin className="h-4 w-4" />
+                      Delivery
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        vibrate();
+                        setMode("takeaway");
+                      }}
+                      className={cn(
+                        "flex flex-1 items-center justify-center gap-2 rounded-[1rem] py-3 text-xs font-extrabold uppercase transition-all tap-haptic",
+                        mode === "takeaway"
+                          ? "bg-white text-primary shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <ShoppingBag className="h-4 w-4" />
+                      Takeaway
                     </button>
                   </div>
-                  {items.map((item) => (
-                    <div 
-                      key={item.id} 
-                      className="group relative flex items-center gap-4 bg-card rounded-3xl p-4 border border-border/50 hover:border-primary/20 transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-primary/5"
-                    >
-                      <div className="relative w-20 h-20 rounded-2xl overflow-hidden shadow-md shrink-0">
-                        <img 
-                          src={item.image} 
-                          alt={item.name} 
-                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-                          loading="lazy" 
-                        />
-                        <div className="absolute top-2 right-2">
-                          <div className={`${item.isVeg ? "veg-indicator" : "nonveg-indicator"} scale-75 border-2 border-white shadow-md`} />
-                        </div>
-                      </div>
 
-                      <div className="flex-1 min-w-0 py-1">
-                        <h4 className="font-black text-sm text-foreground truncate mb-0.5 group-hover:text-primary transition-colors">{item.name}</h4>
-                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight mb-2">₹{item.price} / unit</p>
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center bg-secondary/80 rounded-full p-1 border border-border/50 shadow-inner">
-                            <button 
-                              onClick={() => updateQuantity(item.id, item.quantity - 1)} 
-                              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white text-foreground transition-all active:scale-90 disabled:opacity-30"
-                              disabled={item.quantity <= 1 || isLoading}
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <span className="w-8 text-center text-xs font-black tabular-nums">{item.quantity}</span>
-                            <button 
-                              onClick={() => updateQuantity(item.id, item.quantity + 1)} 
-                              className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-all active:scale-90"
-                              disabled={isLoading}
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                          <span className="text-sm font-black text-foreground">₹{item.price * item.quantity}</span>
-                        </div>
-                      </div>
-
-                      <button 
-                        onClick={() => removeItem(item.id)} 
-                        className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-white shadow-lg border border-border/50 flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 active:scale-90"
-                        disabled={isLoading}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
+                        Items
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          vibrate();
+                          clearCart();
+                        }}
+                        className="flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-widest text-destructive hover:opacity-80"
                       >
-                        <X className="w-4 h-4" />
+                        <Trash2 className="h-3 w-3" />
+                        Clear
                       </button>
                     </div>
-                  ))}
-                </div>
+                    {items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="bento-card group relative flex gap-4 p-4 transition-all hover:border-primary/25"
+                      >
+                        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[1rem]">
+                          <img
+                            src={item.image}
+                            alt=""
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            loading="lazy"
+                          />
+                          <div className="absolute right-2 top-2">
+                            <div
+                              className={cn(
+                                "scale-90 border-2 border-white shadow-md",
+                                item.isVeg ? "veg-indicator" : "nonveg-indicator"
+                              )}
+                            />
+                          </div>
+                        </div>
+                        <div className="min-w-0 flex-1 py-0.5">
+                          <h4 className="truncate text-sm font-extrabold text-[#1C1C1C]">{item.name}</h4>
+                          <p className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">
+                            £{item.price.toLocaleString('en-GB', { minimumFractionDigits: 2 })} / unit
+                          </p>
+                          <div className="mt-2 flex items-center gap-3">
+                            <div className="flex items-center rounded-full border border-[#E8E8E8] bg-secondary/50 p-1">
+                              <button
+                                type="button"
+                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                className="tap-haptic flex h-8 w-8 items-center justify-center rounded-full hover:bg-white disabled:opacity-30"
+                                disabled={item.quantity <= 1 || isLoading}
+                              >
+                                <Minus className="h-3.5 w-3.5" />
+                              </button>
+                              <span className="w-8 text-center text-xs font-extrabold tabular-nums">
+                                {item.quantity}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                className="tap-haptic flex h-8 w-8 items-center justify-center rounded-full bg-primary/12 text-primary hover:bg-primary/20"
+                                disabled={isLoading}
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            <span className="text-sm font-extrabold">£{(item.price * item.quantity).toLocaleString('en-GB', { minimumFractionDigits: 2 })}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeItem(item.id)}
+                          className="tap-haptic absolute -right-1 -top-1 flex h-8 w-8 items-center justify-center rounded-full border border-[#E8E8E8] bg-white text-muted-foreground opacity-0 shadow-md transition-opacity hover:text-destructive group-hover:opacity-100"
+                          disabled={isLoading}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
 
-                {/* Recommendations */}
-                {recommendations.length > 0 && (
-                  <div className="pt-4">
-                    <div className="flex items-center gap-2 mb-4 px-1">
-                      <Sparkles className="w-4 h-4 text-primary" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Often ordered together</span>
-                    </div>
-                    <div className="space-y-3">
-                      {recommendations.map(rec => (
-                        <div key={rec.id} className="flex items-center gap-4 p-3 bg-card rounded-2xl border border-border/50 hover:border-primary/20 transition-all group shadow-sm">
-                          <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 shadow-sm">
-                            <img src={rec.image} alt={rec.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-black text-foreground truncate">{rec.name}</p>
-                            <p className="text-[10px] text-primary font-bold">₹{rec.price}</p>
-                          </div>
-                          <button 
-                            onClick={() => addItem(rec)}
-                            className="w-9 h-9 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all active:scale-90 flex items-center justify-center"
-                            disabled={isLoading}
+                  {recommendations.length > 0 && (
+                    <div className="pt-2">
+                      <div className="mb-3 flex items-center gap-2 px-1">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
+                          Often ordered together
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {recommendations.map((rec) => (
+                          <div
+                            key={rec.id}
+                            className="bento-card flex items-center gap-3 p-3 transition-all hover:border-primary/20"
                           >
-                            <Plus className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
-                {/* Back Link */}
-                <button 
-                  onClick={() => setCurrentStep('cart')}
-                  className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors group"
-                >
-                  <ArrowRight className="w-4 h-4 rotate-180 group-hover:-translate-x-1 transition-transform" />
-                  Back to your items
-                </button>
-
-                {/* Form Sections */}
-                <div className="space-y-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 px-1">
-                      <User className="w-4 h-4 text-primary" />
-                      <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Personal Information</h3>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 ml-1">Full Name</Label>
-                        <div className="relative group">
-                          <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                          <Input
-                            id="name"
-                            name="name"
-                            placeholder="Type your name..."
-                            value={formData.name}
-                            onChange={handleInputChange}
-                            className="h-14 pl-12 bg-secondary/30 border-transparent rounded-2xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/50"
-                            disabled={isPlacingOrder}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 ml-1">Phone Number</Label>
-                        <div className="relative group">
-                          <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                          <Input
-                            id="phone"
-                            name="phone"
-                            type="tel"
-                            placeholder="Mobile number..."
-                            value={formData.phone}
-                            onChange={handleInputChange}
-                            className="h-14 pl-12 bg-secondary/30 border-transparent rounded-2xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/50"
-                            disabled={isPlacingOrder}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {mode === 'delivery' && (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2 px-1">
-                        <MapPin className="w-4 h-4 text-primary" />
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Delivery Location</h3>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="address" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 ml-1">Street Address</Label>
-                        <div className="relative group">
-                          <MapPin className="absolute left-4 top-5 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                          <textarea
-                            id="address"
-                            name="address"
-                            placeholder="Flat no, Street, Landmark..."
-                            value={formData.address}
-                            onChange={handleInputChange}
-                            className="w-full h-32 pl-12 pr-4 py-4 bg-secondary/30 border-transparent rounded-2xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all resize-none placeholder:text-muted-foreground/50"
-                            disabled={isPlacingOrder}
-                          />
-                        </div>
+                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[0.75rem]">
+                              <img src={rec.image} alt="" className="h-full w-full object-cover" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs font-extrabold text-[#1C1C1C]">{rec.name}</p>
+                              <p className="text-[10px] font-bold text-primary">£{rec.price.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => addItem(rec)}
+                              className="tap-haptic flex h-10 w-10 items-center justify-center rounded-[0.75rem] bg-primary/10 text-primary hover:bg-primary hover:text-white"
+                              disabled={isLoading}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
-                </div>
+                </motion.div>
+              )}
 
-                {/* Error Box */}
-                {orderError && (
-                  <div className="p-4 bg-destructive/5 border border-destructive/10 rounded-2xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
-                    <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-                    <p className="text-destructive text-xs font-bold leading-relaxed">{orderError}</p>
+              {phase === "information" && (
+                <motion.div
+                  key="information"
+                  initial={{ opacity: 0, x: 12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -12 }}
+                  transition={springTransition}
+                  className="space-y-6"
+                >
+                  <button
+                    type="button"
+                    onClick={() => goPhase("review")}
+                    className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground hover:text-primary"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Back to items
+                  </button>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 px-1">
+                      <User className="h-4 w-4 text-primary" />
+                      <h3 className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-muted-foreground">
+                        Your details
+                      </h3>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="ml-1 text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
+                        Name
+                      </Label>
+                      <div className="relative">
+                        <User className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          id="name"
+                          name="name"
+                          placeholder="Full name"
+                          value={formData.name}
+                          onChange={handleInputChange}
+                          className="h-14 rounded-[1rem] border-[#E8E8E8] pl-12 text-sm font-medium focus-visible:ring-primary/20"
+                          disabled={isPlacingOrder}
+                          autoComplete="name"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone" className="ml-1 text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
+                        Phone
+                      </Label>
+                      <div className="relative">
+                        <Phone className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          id="phone"
+                          name="phone"
+                          type="tel"
+                          inputMode="numeric"
+                          placeholder="10-digit mobile number"
+                          value={formData.phone}
+                          onChange={handleInputChange}
+                          className="h-14 rounded-[1rem] border-[#E8E8E8] pl-12 text-sm font-medium focus-visible:ring-primary/20"
+                          disabled={isPlacingOrder}
+                          autoComplete="tel"
+                        />
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-            )}
+
+                  {mode === "delivery" && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 px-1">
+                        <MapPin className="h-4 w-4 text-primary" />
+                        <h3 className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-muted-foreground">
+                          Address
+                        </h3>
+                      </div>
+                      <div className="relative">
+                        <MapPin className="pointer-events-none absolute left-4 top-4 h-4 w-4 text-muted-foreground" />
+                        <textarea
+                          id="address"
+                          name="address"
+                          placeholder="Flat, street, landmark, city — we’ll route smarter with more detail"
+                          value={formData.address}
+                          onChange={handleInputChange}
+                          rows={4}
+                          className="w-full resize-none rounded-[1rem] border border-[#E8E8E8] py-3.5 pl-12 pr-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                          disabled={isPlacingOrder}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {orderError && phase === "information" && (
+                    <div className="flex gap-3 rounded-[1rem] border border-destructive/15 bg-destructive/5 p-4">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                      <p className="text-xs font-bold text-destructive">{orderError}</p>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          {/* Sticky Footer Section */}
-          <div className="bg-card border-t border-border/50 p-6 space-y-4 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
-            {currentStep === 'cart' && (
-              <div className="space-y-3">
-                {/* Promo Input */}
+          <div className="sticky bottom-0 z-10 border-t border-[#E8E8E8] bg-white/95 px-5 py-5 shadow-[0_-12px_40px_-18px_rgba(0,0,0,0.12)] backdrop-blur-md">
+            {phase === "review" && (
+              <div className="mb-4 space-y-2">
                 <div className="flex gap-2">
-                  <div className="flex-1 relative group">
-                    <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                  <div className="relative flex-1">
+                    <Tag className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <input
                       type="text"
-                      placeholder="Promo Code"
+                      placeholder="Promo code"
                       value={promoCode}
                       onChange={(e) => setPromoCode(e.target.value)}
-                      className="w-full pl-11 pr-4 py-3 bg-secondary/30 border-transparent rounded-xl text-xs font-black uppercase tracking-widest placeholder:text-muted-foreground/50 focus:bg-white focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all"
+                      className="w-full rounded-[1rem] border border-[#E8E8E8] py-3.5 pl-10 pr-3 text-xs font-extrabold uppercase tracking-widest placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/15"
                     />
                   </div>
-                  <button 
-                    onClick={applyPromo} 
-                    className="px-6 py-3 bg-primary/10 text-primary rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all disabled:opacity-30 active:scale-95"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      vibrate();
+                      applyPromo();
+                    }}
+                    className="tap-haptic rounded-[1rem] bg-primary/10 px-5 py-3 text-xs font-extrabold uppercase tracking-widest text-primary hover:bg-primary hover:text-white disabled:opacity-30"
                     disabled={!promoCode || isLoading}
                   >
                     Apply
                   </button>
                 </div>
-                {promoDiscount > 0 && (
-                  <div className="flex items-center gap-2 text-veg font-black text-[10px] uppercase tracking-widest bg-veg/5 p-2 rounded-lg border border-veg/10">
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    Discount applied: ₹{promoDiscount} saved!
+                {promoError ? (
+                  <p className="px-1 text-[10px] font-bold text-destructive">{promoError}</p>
+                ) : null}
+                {promoDiscount > 0 ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-primary/15 bg-primary/5 px-2 py-2 text-[10px] font-extrabold uppercase tracking-widest text-primary">
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    Saved £{promoDiscount.toLocaleString('en-GB', { minimumFractionDigits: 2 })}
                   </div>
-                )}
+                ) : null}
               </div>
             )}
 
-            {/* Bill Summary Summary */}
-            <div className="space-y-2.5">
-              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+            <div className="mb-4 space-y-2">
+              <div className="flex justify-between text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
                 <span>Subtotal</span>
-                <span className="text-foreground">₹{subtotal}</span>
+                <span className="text-[#1C1C1C]">£{subtotal.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</span>
               </div>
               {mode === "delivery" && (
-                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                  <span>Delivery Fee</span>
-                  <span className="text-foreground">₹{deliveryFee}</span>
+                <div className="flex justify-between text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
+                  <span>Delivery</span>
+                  <span className="text-[#1C1C1C]">£{deliveryFee.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</span>
                 </div>
               )}
-              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                <span>Taxes & GST</span>
-                <span className="text-foreground">₹{tax}</span>
+              <div className="flex justify-between text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
+                <span>Tax</span>
+                <span className="text-[#1C1C1C]">£{tax.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</span>
               </div>
               {promoDiscount > 0 && (
-                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-veg">
-                  <span>Promo Discount</span>
-                  <span>-₹{promoDiscount}</span>
+                <div className="flex justify-between text-[10px] font-extrabold uppercase tracking-widest text-primary">
+                  <span>Promo</span>
+                  <span>−£{promoDiscount.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</span>
                 </div>
               )}
-              <div className="flex justify-between items-center pt-3 border-t border-dashed border-border/50">
-                <span className="text-sm font-black uppercase tracking-widest text-foreground">Total Amount</span>
-                <span className="text-2xl font-black text-primary tracking-tighter">₹{total}</span>
+              <div className="flex justify-between border-t border-dashed border-[#E8E8E8] pt-3">
+                <span className="text-sm font-extrabold uppercase tracking-tight text-[#1C1C1C]">Total</span>
+                <span className="text-2xl font-extrabold tracking-tighter text-primary">£{total.toLocaleString('en-GB', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
 
-            {/* Main Action Button */}
-            {currentStep === 'cart' ? (
-              <button 
-                onClick={handleProceedToCheckout}
-                disabled={isLoading}
-                className="btn-primary-glow w-full py-4.5 rounded-2xl text-base font-black flex items-center justify-center gap-3 shadow-xl shadow-primary/20 group active:scale-[0.98] transition-all"
+            {phase === "review" && (
+              <button
+                type="button"
+                onClick={() => goPhase("information")}
+                disabled={isLoading || items.length === 0}
+                className="btn-primary-glow flex w-full items-center justify-center gap-2 rounded-[1.25rem] py-4 text-base font-extrabold"
               >
-                Proceed to Checkout
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                Continue
+                <ArrowRight className="h-5 w-5" />
               </button>
-            ) : (
-              <button 
+            )}
+            {phase === "information" && (
+              <button
+                type="button"
                 onClick={handlePlaceOrder}
-                disabled={isPlacingOrder}
-                className="btn-primary-glow w-full py-4.5 rounded-2xl text-base font-black flex items-center justify-center gap-3 shadow-xl shadow-primary/20 group active:scale-[0.98] transition-all disabled:opacity-70"
+                disabled={
+                  isPlacingOrder ||
+                  !validation.nameOk ||
+                  !validation.phoneOk ||
+                  !validation.addressOk
+                }
+                className="btn-primary-glow relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-[1.25rem] py-4 text-base font-extrabold"
               >
                 {isPlacingOrder ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Placing Order...
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Placing order…
                   </>
                 ) : (
                   <>
-                    Place Order Now
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    Place order
+                    <ArrowRight className="h-5 w-5" />
                   </>
                 )}
               </button>
             )}
-            
-            {currentStep === 'cart' && (
-              <p className="text-[9px] text-center text-muted-foreground font-bold uppercase tracking-[0.2em]">
-                Secure checkout powered by HungryDash
+
+            {phase === "review" && (
+              <p className="mt-3 text-center text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                Secure checkout · HungryDash
               </p>
             )}
           </div>
@@ -532,10 +741,15 @@ const CartSidebar = () => {
   if (isMobile) {
     return (
       <Drawer open={isCartOpen} onOpenChange={setIsCartOpen}>
-        <DrawerContent className="h-[90vh] bg-background">
-          <div className="overflow-hidden h-full rounded-t-[2rem]">
+        <DrawerContent className="h-[90vh] border-t border-[#E8E8E8] bg-[#FFFFFF] p-0">
+          <motion.div
+            initial={{ y: 24, opacity: 0.9 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={springTransition}
+            className="h-full overflow-hidden rounded-t-[1.5rem]"
+          >
             {cartContent}
-          </div>
+          </motion.div>
         </DrawerContent>
       </Drawer>
     );
@@ -543,13 +757,22 @@ const CartSidebar = () => {
 
   return (
     <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-foreground/40 backdrop-blur-sm z-50" onClick={() => setIsCartOpen(false)} />
-
-      {/* Sidebar */}
-      <aside className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-card z-50 flex flex-col shadow-2xl animate-slide-in-right">
+      <motion.div
+        role="presentation"
+        className="fixed inset-0 z-50 cursor-default bg-[#1C1C1C]/35 backdrop-blur-[2px]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+        onClick={() => setIsCartOpen(false)}
+      />
+      <motion.aside
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        transition={springTransition}
+        className="fixed bottom-0 right-0 top-0 z-50 flex w-full max-w-md flex-col bg-[#FFFFFF] shadow-2xl"
+      >
         {cartContent}
-      </aside>
+      </motion.aside>
     </>
   );
 };
